@@ -1,4 +1,5 @@
 import time
+#colocar o timer de forma formatada com 2 casas, mesmo se nao tiver necessidade
 def work_time(wt):
     wtt = wt * 60
     wt_h = wtt // 3600
