@@ -1,4 +1,4 @@
-from session import run_sessions
+from session import begin
 
 
-run_sessions()
+begin()

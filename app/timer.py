@@ -11,7 +11,7 @@ def work_time(wt):
             while wt_s >= 0 :
                 print(f"{wt_h}:{wt_m}:{wt_s}")
                 wt_s -=1
-                time.sleep(0.01)
+                time.sleep(1)
             wt_s = 59
             wt_m -= 1
         wt_m = 59
@@ -26,7 +26,7 @@ def rest_time(rt):
         while rt_s >= 0 :
             print(f"00:{rt_m}:{rt_s}")
             rt_s -=1
-            time.sleep(0.01)
+            time.sleep(1)
         rt_s = 59
         rt_m -= 1   
 
