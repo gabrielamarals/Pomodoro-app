@@ -10,7 +10,7 @@ This project is currently under development.
 
 The first version is being developed as a terminal application using Python and SQLite. A graphical interface is planned for future versions.
 
-## Current Features po
+## Current Features 
 
 - Start a focus session
 - Start a break session
@@ -40,8 +40,7 @@ The first version is being developed as a terminal application using Python and 
 
 - Python
 - SQLite
-- Git
-- GitHub
+
 
 ## Project Structure
 
