@@ -14,8 +14,17 @@ def initialize_database():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 work_time INTEGER NOT NULL,
                 rest_time INTEGER NOT NULL,
-                session_date TEXT NOT NULL
+                session_date TEXT NOT NULL,
+                goal TEXT
             );
+        """)
+    cursor.execute("PRAGMA table_info(sessions);")
+    columns = cursor.fetchall()
+    column_names = [column[1] for column in columns]
+    if "goal" not in column_names:
+        cursor.execute("""
+            ALTER TABLE sessions
+            ADD COLUMN goal TEXT;
         """)
 
     connection.commit()
@@ -24,7 +33,7 @@ def initialize_database():
     
 
 
-def save_session(work_time, rest_time, session_date):
+def save_session(work_time, rest_time, session_date, goal=None):
     connection = sqlite3.connect(DATABASE_PATH)
     cursor = connection.cursor()
     
@@ -32,10 +41,11 @@ def save_session(work_time, rest_time, session_date):
         INSERT INTO sessions (
             work_time,
             rest_time,
-            session_date
+            session_date,
+            goal
         )
-        VALUES (?, ?, ?);
-    """, (work_time, rest_time, str(session_date)))
+        VALUES (?, ?, ?,?);
+    """, (work_time, rest_time, str(session_date), goal))
     session_id = cursor.lastrowid
     connection.commit()
     connection.close()
@@ -43,7 +53,8 @@ def save_session(work_time, rest_time, session_date):
         "id" : session_id,
         "work_time" : work_time,
         "rest_time" : rest_time,
-        "session_date" : str(session_date)
+        "session_date" : str(session_date),
+        "goal" : goal
     }
    
     
@@ -103,19 +114,21 @@ def get_sessions_by_date(session_date):
         id,
         work_time,
         rest_time,
-        session_date
+        session_date,
+        goal
     FROM sessions
     WHERE session_date = ?
     ORDER BY id
 """, (str(session_date),))
     data = cursor.fetchall()
     sessions_in_this_date = []
-    for session_id, work_time, rest_time, session_date_value in data:
+    for session_id, work_time, rest_time, session_date_value, session_goal in data:
         sessions_in_this_date.append({
             "id" : session_id,
             "work_time" : work_time,
             "rest_time" : rest_time,
-            "session_date" :session_date_value
+            "session_date" : session_date_value,
+            "goal" : session_goal   
         })
     cursor.close()
     connection.close()
@@ -129,20 +142,23 @@ def get_recent_sessions(limit=20):
         id,
         work_time,
         rest_time,
-        session_date
+        session_date,
+        goal
     FROM sessions
     ORDER BY session_date DESC, id DESC
     LIMIT ?
 """,(limit,))
     recent_sessions = []
     data = cursor.fetchall()
-    for session_id, work_time, rest_time, session_date in data:
+    for session_id, work_time, rest_time, session_date, session_goal in data:
         recent_sessions.append({
             "id" : session_id,
             "work_time" : work_time,
             "rest_time" : rest_time,
-            "session_date" : session_date
+            "session_date" : session_date,
+            "goal" : session_goal
         })
     cursor.close()
     connection.close()
     return recent_sessions
+

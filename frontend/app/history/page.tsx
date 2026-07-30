@@ -1,8 +1,8 @@
+"use client";
+
 import { AppNavigation } from "../components/AppNavigation";
-import {
-  getSessionHistory,
-  type StudySession,
-} from "../../lib/services/sessions";
+import { useRecentSessions } from "../../lib/hooks/useRecentSessions";
+import type { StudySession } from "../../lib/services/sessions";
 
 function formatDate(date: string) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -21,9 +21,10 @@ function groupSessionsByDate(sessions: StudySession[]) {
 }
 
 export default function HistoryPage() {
-  const sessions = getSessionHistory();
-  const sessionsByDate = groupSessionsByDate(sessions);
-  const totalFocusTime = sessions.reduce(
+  const { sessions, hasError, isLoading } = useRecentSessions(20);
+  const loadedSessions = sessions ?? [];
+  const sessionsByDate = groupSessionsByDate(loadedSessions);
+  const totalFocusTime = loadedSessions.reduce(
     (total, session) => total + session.work_time,
     0,
   );
@@ -39,21 +40,23 @@ export default function HistoryPage() {
             <p className="eyebrow">Seu caminho até aqui</p>
             <h1>Histórico de sessões.</h1>
           </div>
-          <span className="demo-badge">dados demonstrativos</span>
+          <span className="demo-badge">
+            {hasError ? "API indisponível" : isLoading ? "carregando" : "dados reais"}
+          </span>
         </header>
 
         <section className="history-summary" aria-label="Resumo do histórico">
           <div>
             <span>Sessões exibidas</span>
-            <strong>{sessions.length}</strong>
+            <strong>{sessions ? sessions.length : "—"}</strong>
           </div>
           <div>
             <span>Tempo de foco</span>
-            <strong>{totalFocusTime} min</strong>
+            <strong>{sessions ? `${totalFocusTime} min` : "—"}</strong>
           </div>
           <div>
             <span>Dias estudados</span>
-            <strong>{studiedDays}</strong>
+            <strong>{sessions ? studiedDays : "—"}</strong>
           </div>
         </section>
 
@@ -63,10 +66,10 @@ export default function HistoryPage() {
               <p className="eyebrow">Sessões recentes</p>
               <h2 id="history-list-title">Atividade registrada</h2>
             </div>
-            <span className="history-period">Julho de 2026</span>
+            <span className="history-period">Até 20 registros</span>
           </div>
 
-          {sessions.length > 0 ? (
+          {loadedSessions.length > 0 ? (
             <div className="history-groups">
               {Object.entries(sessionsByDate).map(([date, daySessions]) => (
                 <section className="history-day" key={date}>
@@ -94,7 +97,7 @@ export default function HistoryPage() {
                           <span>{String(index + 1).padStart(2, "0")}</span>
                         </div>
                         <div className="history-session-label">
-                          <strong>Sessão de foco</strong>
+                          <strong>{session.goal || "Sessão sem objetivo definido"}</strong>
                           <small>Registro #{session.id}</small>
                         </div>
                         <div className="history-session-metric">
@@ -111,6 +114,16 @@ export default function HistoryPage() {
                 </section>
               ))}
             </div>
+          ) : hasError ? (
+            <div className="history-empty">
+              <strong>Não foi possível acessar a API.</strong>
+              <p>Confirme se o `api.py` está rodando e atualize a página.</p>
+            </div>
+          ) : isLoading ? (
+            <div className="history-empty">
+              <strong>Carregando seu histórico…</strong>
+              <p>Aguardando a resposta da API.</p>
+            </div>
           ) : (
             <div className="history-empty">
               <strong>Nenhuma sessão encontrada.</strong>
@@ -120,8 +133,7 @@ export default function HistoryPage() {
         </section>
 
         <p className="data-note">
-          O filtro por período será adicionado junto com o endpoint de histórico da
-          API.
+          Os registros desta tela vêm de `GET /sessions/recent?limit=20`.
         </p>
       </section>
     </main>

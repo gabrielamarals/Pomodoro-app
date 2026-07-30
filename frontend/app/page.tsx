@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AppNavigation } from "./components/AppNavigation";
-import { getDailySummary } from "../lib/services/progress";
+import { formatMinutes } from "../lib/formatters/time";
+import { useDailySummary } from "../lib/hooks/useDailySummary";
+import { createSession } from "../lib/services/sessions";
 
 type TimerMode = "focus" | "rest";
-type TimerStatus = "ready" | "running" | "paused" | "completed";
+type TimerStatus =
+  | "ready"
+  | "running"
+  | "paused"
+  | "saving"
+  | "save-error"
+  | "completed";
 
 function formatTime(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
@@ -16,10 +24,12 @@ function formatTime(totalSeconds: number) {
 function DurationControl({
   label,
   value,
+  disabled = false,
   onChange,
 }: {
   label: string;
   value: number;
+  disabled?: boolean;
   onChange: (value: number) => void;
 }) {
   return (
@@ -29,6 +39,7 @@ function DurationControl({
         <button
           type="button"
           aria-label={`Diminuir ${label.toLowerCase()}`}
+          disabled={disabled}
           onClick={() => onChange(Math.max(1, value - 5))}
         >
           −
@@ -37,6 +48,7 @@ function DurationControl({
         <button
           type="button"
           aria-label={`Aumentar ${label.toLowerCase()}`}
+          disabled={disabled}
           onClick={() => onChange(Math.min(120, value + 5))}
         >
           +
@@ -47,15 +59,38 @@ function DurationControl({
 }
 
 export default function Home() {
-  const today = getDailySummary();
+  const {
+    summary: today,
+    hasError: dailySummaryError,
+    refresh: refreshDailySummary,
+  } = useDailySummary();
   const [focusMinutes, setFocusMinutes] = useState(25);
   const [restMinutes, setRestMinutes] = useState(5);
+  const [sessionGoal, setSessionGoal] = useState("");
   const [mode, setMode] = useState<TimerMode>("focus");
   const [status, setStatus] = useState<TimerStatus>("ready");
   const [remainingSeconds, setRemainingSeconds] = useState(focusMinutes * 60);
+  const saveStartedRef = useRef(false);
 
   const totalSeconds = (mode === "focus" ? focusMinutes : restMinutes) * 60;
   const progress = Math.max(0, Math.min(100, (remainingSeconds / totalSeconds) * 100));
+  const configurationLocked =
+    mode === "rest" ||
+    status === "running" ||
+    status === "paused" ||
+    status === "saving" ||
+    status === "save-error";
+  const goalLocked =
+    mode === "focus" &&
+    (status === "running" ||
+      status === "paused" ||
+      status === "saving" ||
+      status === "save-error");
+  const dailyGoalMinutes = 75;
+  const dailyGoalProgress = Math.min(
+    100,
+    Math.round(((today?.total_work_time ?? 0) / dailyGoalMinutes) * 100),
+  );
 
   useEffect(() => {
     if (status !== "running") return;
@@ -71,13 +106,14 @@ export default function Home() {
     if (status !== "running" || remainingSeconds !== 0) return;
 
     if (mode === "focus") {
-      setMode("rest");
-      setRemainingSeconds(restMinutes * 60);
-      setStatus("ready");
+      void saveCompletedFocus();
     } else {
-      setStatus("completed");
+      saveStartedRef.current = false;
+      setMode("focus");
+      setRemainingSeconds(focusMinutes * 60);
+      setStatus("running");
     }
-  }, [mode, remainingSeconds, restMinutes, status]);
+  }, [focusMinutes, mode, remainingSeconds, status]);
 
   useEffect(() => {
     if (status !== "ready") return;
@@ -87,40 +123,102 @@ export default function Home() {
   const statusLabel = useMemo(() => {
     if (status === "running") return mode === "focus" ? "Foco em andamento" : "Hora de respirar";
     if (status === "paused") return "Sessão pausada";
+    if (status === "saving") return "Salvando sessão";
+    if (status === "save-error") return "Não foi possível salvar";
     if (status === "completed") return "Descanso concluído";
     return mode === "focus" ? "Pronto para focar" : "Pronto para descansar";
   }, [mode, status]);
 
   function selectMode(nextMode: TimerMode) {
-    if (status === "running" || status === "paused") return;
+    if (
+      status === "running" ||
+      status === "paused" ||
+      status === "saving" ||
+      status === "save-error"
+    ) return;
     setMode(nextMode);
     setStatus("ready");
     setRemainingSeconds((nextMode === "focus" ? focusMinutes : restMinutes) * 60);
   }
 
   function handlePrimaryAction() {
+    if (status === "saving") return;
+
+    if (status === "save-error") {
+      void saveCompletedFocus();
+      return;
+    }
+
+    if (status === "completed") {
+      setMode("focus");
+      setStatus("ready");
+      setRemainingSeconds(focusMinutes * 60);
+      return;
+    }
+
     if (status === "running") {
       setStatus("paused");
       return;
     }
 
+    if (mode === "focus") {
+      saveStartedRef.current = false;
+    }
+
     setStatus("running");
   }
 
+  async function saveCompletedFocus() {
+    if (saveStartedRef.current) return;
+
+    saveStartedRef.current = true;
+    setStatus("saving");
+
+    try {
+      const now = new Date();
+      const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+        .toISOString()
+        .slice(0, 10);
+
+      await createSession({
+        work_time: focusMinutes,
+        rest_time: restMinutes,
+        session_date: localDate,
+        goal: sessionGoal.trim() || null,
+      });
+
+      refreshDailySummary();
+      setSessionGoal("");
+      setMode("rest");
+      setRemainingSeconds(restMinutes * 60);
+      setStatus("running");
+    } catch {
+      saveStartedRef.current = false;
+      setStatus("save-error");
+    }
+  }
+
   function cancelSession() {
+    saveStartedRef.current = false;
     setMode("focus");
     setStatus("ready");
     setRemainingSeconds(focusMinutes * 60);
   }
 
   const primaryLabel =
-    status === "running"
-      ? "Pausar"
-      : status === "paused"
-        ? "Continuar"
-        : mode === "focus"
-          ? "Iniciar foco"
-          : "Iniciar descanso";
+    status === "saving"
+      ? "Salvando..."
+      : status === "save-error"
+        ? "Tentar novamente"
+        : status === "completed"
+          ? "Nova sessão"
+          : status === "running"
+            ? "Pausar"
+            : status === "paused"
+              ? "Continuar"
+              : mode === "focus"
+                ? "Iniciar foco"
+                : "Iniciar descanso";
 
   return (
     <main className={`app-shell mode-${mode}`}>
@@ -132,9 +230,9 @@ export default function Home() {
             <p className="eyebrow">Boa sessão, Gabriel</p>
             <h1>Proteja seu tempo de foco.</h1>
           </div>
-          <div className="today-chip" aria-label="Resumo demonstrativo de hoje">
+          <div className="today-chip" aria-label="Resumo de hoje">
             <span>Hoje</span>
-            <strong>{today.total_work_time} min</strong>
+            <strong>{today ? formatMinutes(today.total_work_time) : "—"}</strong>
           </div>
         </header>
 
@@ -145,7 +243,12 @@ export default function Home() {
                 type="button"
                 className={mode === "focus" ? "selected" : ""}
                 aria-pressed={mode === "focus"}
-                disabled={status === "running" || status === "paused"}
+                disabled={
+                  status === "running" ||
+                  status === "paused" ||
+                  status === "saving" ||
+                  status === "save-error"
+                }
                 onClick={() => selectMode("focus")}
               >
                 Foco
@@ -154,7 +257,12 @@ export default function Home() {
                 type="button"
                 className={mode === "rest" ? "selected" : ""}
                 aria-pressed={mode === "rest"}
-                disabled={status === "running" || status === "paused"}
+                disabled={
+                  status === "running" ||
+                  status === "paused" ||
+                  status === "saving" ||
+                  status === "save-error"
+                }
                 onClick={() => selectMode("rest")}
               >
                 Descanso
@@ -171,22 +279,36 @@ export default function Home() {
                   {formatTime(remainingSeconds)}
                 </strong>
                 <span className="timer-caption">
-                  {mode === "focus" ? "Mantenha a atenção em uma tarefa" : "Levante, respire e recarregue"}
+                  {mode === "focus"
+                    ? sessionGoal.trim() || "Mantenha a atenção em uma tarefa"
+                    : "Levante, respire e prepare o próximo objetivo"}
                 </span>
               </div>
             </div>
 
             <div className="timer-actions">
-              <button className="primary-action" type="button" onClick={handlePrimaryAction}>
+              <button
+                className="primary-action"
+                type="button"
+                disabled={status === "saving"}
+                onClick={handlePrimaryAction}
+              >
                 <span>{status === "running" ? "Ⅱ" : "▶"}</span>
                 {primaryLabel}
               </button>
-              {(status === "running" || status === "paused") && (
+              {(status === "running" ||
+                status === "paused" ||
+                status === "save-error") && (
                 <button className="secondary-action" type="button" onClick={cancelSession}>
-                  Cancelar
+                  {status === "save-error" ? "Descartar" : "Cancelar"}
                 </button>
               )}
             </div>
+            {status === "save-error" && (
+              <p className="save-feedback" role="alert">
+                A sessão terminou, mas a API não respondeu. Tente salvar novamente.
+              </p>
+            )}
           </section>
 
           <aside className="side-panel">
@@ -194,32 +316,70 @@ export default function Home() {
               <div className="card-heading">
                 <div>
                   <p className="eyebrow">Preparar sessão</p>
-                  <h2 id="duration-title">Durações</h2>
+                  <h2 id="duration-title">Seu próximo foco</h2>
                 </div>
                 <span className="status-badge">personalizado</span>
               </div>
 
-              <DurationControl label="Tempo de foco" value={focusMinutes} onChange={setFocusMinutes} />
-              <DurationControl label="Descanso" value={restMinutes} onChange={setRestMinutes} />
+              <label className="session-goal-field">
+                <span>
+                  {mode === "rest" ? "Objetivo da próxima sessão" : "Objetivo da sessão"}
+                </span>
+                <textarea
+                  disabled={goalLocked}
+                  maxLength={160}
+                  onChange={(event) => setSessionGoal(event.target.value)}
+                  placeholder="Ex.: revisar consultas com GROUP BY"
+                  rows={3}
+                  value={sessionGoal}
+                />
+                <small>{sessionGoal.length}/160 · opcional</small>
+              </label>
+
+              <DurationControl
+                label="Tempo de foco"
+                value={focusMinutes}
+                disabled={configurationLocked}
+                onChange={setFocusMinutes}
+              />
+              <DurationControl
+                label="Descanso"
+                value={restMinutes}
+                disabled={configurationLocked}
+                onChange={setRestMinutes}
+              />
               <p className="helper-text">As durações podem ser alteradas antes de iniciar.</p>
             </section>
 
             <section className="progress-card" aria-labelledby="today-title">
               <div className="card-heading">
                 <div>
-                  <p className="eyebrow">Resumo demonstrativo</p>
+                  <p className="eyebrow">Resumo da API</p>
                   <h2 id="today-title">Seu dia</h2>
                 </div>
-                <strong>{today.session_count} sessões</strong>
+                <strong>
+                  {dailySummaryError
+                    ? "indisponível"
+                    : today
+                      ? `${today.session_count} ${
+                          today.session_count === 1 ? "sessão" : "sessões"
+                        }`
+                      : "carregando"}
+                </strong>
               </div>
               <div className="goal-row">
-                <span>Meta diária</span>
-                <strong>67%</strong>
+                <span>Meta diária de {dailyGoalMinutes} min</span>
+                <strong>{dailyGoalProgress}%</strong>
               </div>
-              <div className="goal-track" aria-label="67% da meta diária">
-                <span style={{ width: "67%" }} />
+              <div
+                className="goal-track"
+                aria-label={`${dailyGoalProgress}% da meta diária`}
+              >
+                <span style={{ width: `${dailyGoalProgress}%` }} />
               </div>
-              <p className="helper-text">Estes dados são temporários até a API estar pronta.</p>
+              <p className="helper-text">
+                As sessões vêm do seu SQLite por meio da primeira rota da API.
+              </p>
             </section>
           </aside>
         </div>

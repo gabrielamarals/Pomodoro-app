@@ -1,9 +1,9 @@
 import {
-  MOCK_DAILY_SUMMARY,
-  MOCK_MONTHLY_SUMMARY,
   MOCK_PROGRESS_OVERVIEW,
   MOCK_WEEKLY_SUMMARY,
 } from "../mocks/progress";
+
+const API_BASE_URL = "http://127.0.0.1:8000";
 
 export type DailySummary = {
   date: string;
@@ -14,22 +14,44 @@ export type DailySummary = {
 export type ProgressOverview = {
   current_streak: number;
   weekly_total: number;
-  monthly_total: number;
   previous_week_total: number;
 };
 
-// This service is the only layer that will change when the API is available.
-// Components should not import mock files directly.
-export function getDailySummary(): DailySummary {
-  return MOCK_DAILY_SUMMARY;
+export async function fetchDailySummary(
+  date: string,
+  signal?: AbortSignal,
+): Promise<DailySummary> {
+  const response = await fetch(
+    `${API_BASE_URL}/sessions/daily?date=${encodeURIComponent(date)}`,
+    { signal },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Daily summary request failed with status ${response.status}`);
+  }
+
+  return response.json() as Promise<DailySummary>;
 }
 
+export async function fetchMonthlySummary(
+  month: string,
+  signal?: AbortSignal,
+): Promise<DailySummary[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/sessions/monthly?month=${encodeURIComponent(month)}`,
+    { signal },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Monthly summary request failed with status ${response.status}`);
+  }
+
+  return response.json() as Promise<DailySummary[]>;
+}
+
+// The remaining functions still use mocks until their API routes are available.
 export function getWeeklySummary(): DailySummary[] {
   return MOCK_WEEKLY_SUMMARY;
-}
-
-export function getMonthlySummary(): DailySummary[] {
-  return MOCK_MONTHLY_SUMMARY;
 }
 
 export function getProgressOverview(): ProgressOverview {

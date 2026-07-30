@@ -298,11 +298,15 @@ h2 {
 }
 
 .timer-caption {
+  display: -webkit-box;
   max-width: 205px;
+  overflow: hidden;
   color: var(--ink-soft);
   font-size: 0.76rem;
   line-height: 1.4;
   text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .timer-actions {
@@ -338,6 +342,11 @@ h2 {
   background: var(--accent-dark);
 }
 
+.primary-action:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .primary-action span {
   font-size: 0.8rem;
 }
@@ -346,6 +355,15 @@ h2 {
   padding: 0 18px;
   border: 1px solid var(--line);
   background: transparent;
+}
+
+.save-feedback {
+  max-width: 360px;
+  margin: -12px 0 0;
+  color: var(--focus-dark);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  text-align: center;
 }
 
 .side-panel {
@@ -386,6 +404,47 @@ h2 {
   border-top: 1px solid var(--line);
 }
 
+.session-goal-field {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.session-goal-field > span {
+  color: var(--ink-soft);
+  font-size: 0.77rem;
+}
+
+.session-goal-field textarea {
+  width: 100%;
+  min-height: 82px;
+  resize: vertical;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+  background: #faf8f2;
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.session-goal-field textarea:focus {
+  border-color: var(--accent);
+  outline: 3px solid color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.session-goal-field textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.session-goal-field small {
+  justify-self: end;
+  color: var(--ink-soft);
+  font-size: 0.62rem;
+}
+
 .duration-label,
 .goal-row {
   color: var(--ink-soft);
@@ -414,6 +473,11 @@ h2 {
 .stepper button:hover {
   border-color: var(--accent);
   color: var(--accent-dark);
+}
+
+.stepper button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .stepper strong {
@@ -836,6 +900,62 @@ h2 {
   white-space: nowrap;
 }
 
+.activity-session-details {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.activity-session-heading,
+.activity-session-details > small,
+.activity-session-item span,
+.activity-session-item small {
+  color: #b9c5c0;
+  font-size: 0.64rem;
+}
+
+.activity-session-heading {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.activity-session-list {
+  display: grid;
+  gap: 7px;
+}
+
+.activity-session-item {
+  display: grid;
+  grid-template-columns: minmax(62px, 1fr) auto;
+  gap: 3px 12px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.activity-session-item strong {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.72rem;
+}
+
+.activity-session-item small {
+  grid-column: 1 / -1;
+}
+
+.activity-session-item .activity-session-goal {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .history-workspace {
   padding-bottom: 72px;
 }
@@ -966,7 +1086,11 @@ h2 {
 }
 
 .history-session-label strong {
+  overflow: hidden;
   font-size: 0.81rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .history-session-label small,

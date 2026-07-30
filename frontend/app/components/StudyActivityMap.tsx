@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSessionsByDate } from "../../lib/hooks/useSessionsByDate";
 import type { DailySummary } from "../../lib/services/progress";
 
 type StudyActivityMapProps = {
@@ -39,6 +40,11 @@ export function StudyActivityMap({
   const [selectedDay, setSelectedDay] = useState<DailySummary | null>(
     initialSelection,
   );
+  const {
+    sessions: selectedSessions,
+    hasError: sessionsError,
+    isLoading: sessionsLoading,
+  } = useSessionsByDate(selectedDay?.date ?? null);
   const monthLabel = new Intl.DateTimeFormat("pt-BR", {
     month: "long",
     year: "numeric",
@@ -47,6 +53,13 @@ export function StudyActivityMap({
     ...Array.from({ length: firstWeekday }, () => null),
     ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
   ];
+
+  useEffect(() => {
+    const selectionBelongsToMonth = selectedDay?.date.startsWith(month);
+    if ((!selectedDay || !selectionBelongsToMonth) && summaries.length > 0) {
+      setSelectedDay(summaries.at(-1) ?? null);
+    }
+  }, [month, selectedDay, summaries]);
 
   function selectDay(day: number) {
     const date = `${month}-${String(day).padStart(2, "0")}`;
@@ -129,6 +142,30 @@ export function StudyActivityMap({
               <div className="activity-detail-row">
                 <span>Sessões concluídas</span>
                 <strong>{selectedDay.session_count}</strong>
+              </div>
+              <div className="activity-session-details">
+                <span className="activity-session-heading">Detalhes das sessões</span>
+
+                {sessionsError ? (
+                  <small>Não foi possível consultar os registros.</small>
+                ) : sessionsLoading ? (
+                  <small>Carregando sessões…</small>
+                ) : selectedSessions && selectedSessions.length > 0 ? (
+                  <div className="activity-session-list">
+                    {selectedSessions.map((session, index) => (
+                      <div className="activity-session-item" key={session.id}>
+                        <span>Sessão {index + 1}</span>
+                        <strong>{session.work_time} min</strong>
+                        <span className="activity-session-goal">
+                          {session.goal || "Sem objetivo definido"}
+                        </span>
+                        <small>{session.rest_time} min de descanso</small>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <small>Nenhuma sessão registrada neste dia.</small>
+                )}
               </div>
             </>
           ) : (

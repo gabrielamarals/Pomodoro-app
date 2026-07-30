@@ -1,169 +1,229 @@
 # Study Tracker Pomodoro
 
-A study productivity application that combines a Pomodoro timer with study session tracking.
+A Pomodoro application that combines focus sessions with study tracking, progress
+visualization, and, in future versions, short reflections about the quality of each
+session.
 
-The main goal of this project is to help users organize their focus sessions, record their study time, review their study history, and track their progress over time.
+## Development responsibilities
 
-## Project Status
+This is a collaborative learning project with clearly separated responsibilities:
 
-This project is currently under development.
+- **Gabriel Augusto Amaral Silva:** responsible for learning, designing, and
+  implementing the back-end, including Python, SQLite, SQL queries, the future API,
+  and its integration with the database.
+- **OpenAI Codex:** responsible for designing and implementing the front-end,
+  including the interface, user experience, responsiveness, visual components, and
+  future HTTP integration with the API.
 
-The first version is being developed as a terminal application using Python and SQLite. A graphical interface is planned for future versions.
+The front-end does not access SQLite directly. Back-end changes remain Gabriel's
+responsibility unless he explicitly requests assistance with a specific change.
 
-## Current Features 
+## Project status
 
-- Start a focus session
-- Start a break session
-- Choose custom focus and break durations
-- Save completed sessions in a SQLite database
-- Store the date of each study session
-- Search study sessions by date
-- Calculate the total study time for a specific day
+The project is under active development.
 
-## Planned Features
+The Python and SQLite data layer can already create and save sessions, produce daily
+and monthly summaries, retrieve sessions from a selected date, and list recent
+sessions. The web interface currently includes the timer, progress dashboard,
+study-activity map, and history screen.
 
-- [x] Pomodoro timer
-- [x] Custom focus and break durations
-- [x] SQLite database integration
-- [x] Save completed study sessions
-- [ ] View recent study sessions
-- [ ] Search sessions by month and year
-- [ ] Display the days studied during a selected month
-- [ ] Monthly study calendar
-- [ ] Daily, weekly, and monthly statistics
-- [ ] Study subjects and project categories
-- [ ] Daily and weekly study goals
-- [ ] Graphical user interface
-- [ ] Charts and productivity reports
+The front-end is temporarily powered by clearly identified mock data. The next major
+milestone is a Python API that will connect the interface to the real back-end data.
+
+## Product vision
+
+Most Pomodoro applications show how long a person studied. This project also aims to
+help users understand **how well** their study sessions went.
+
+Alongside time and session statistics, future versions may include a quick,
+optional post-session reflection:
+
+- focus quality;
+- whether the intended objective was completed;
+- study subject or project;
+- main distraction;
+- a short note.
+
+These records may later support respectful insights about study patterns without
+punishing users or turning the end of a session into a long questionnaire.
+
+## Current features
+
+### Back-end
+
+- initialize a local SQLite database;
+- save completed focus and rest sessions;
+- calculate the session count and focus time for a day;
+- group monthly activity by date;
+- retrieve individual sessions from a selected date;
+- retrieve a limited number of recent sessions;
+- order history from newest to oldest;
+- run focus and rest sessions through the terminal prototype.
+
+### Front-end
+
+- responsive Pomodoro timer interface;
+- focus and rest modes;
+- configurable focus and rest durations;
+- pause, continue, and cancel controls;
+- progress dashboard;
+- weekly activity chart;
+- monthly study-activity map inspired by contribution calendars;
+- interactive daily summary;
+- session history grouped by date;
+- isolated service and mock-data layers prepared for the future API.
+
+> The data displayed by the web interface is currently demonstrative and is not yet
+> loaded from SQLite.
+
+## Roadmap
+
+- [x] SQLite database initialization
+- [x] Completed-session storage
+- [x] Daily summary query
+- [x] Monthly summary grouped by day
+- [x] Sessions-by-date query
+- [x] Recent-session query with a configurable limit
+- [x] Web timer interface
+- [x] Progress dashboard
+- [x] Study-activity map
+- [x] Initial history interface
+- [ ] Python HTTP API
+- [ ] Front-end and API integration
+- [ ] Replace mock data with real responses
+- [ ] Complete monthly calendar
+- [ ] Post-session reflection
+- [ ] Subjects and project categories
+- [ ] Light, dark, and custom visual themes
+- [ ] Automated tests
+- [ ] Authentication and user profiles
+- [ ] Advanced reports and personalized insights
+- [ ] Optional AI-assisted weekly insights
 
 ## Technologies
 
+### Back-end
+
 - Python
 - SQLite
+- SQL
+- FastAPI planned for the HTTP API
 
+### Front-end
 
-## Project Structure
+- TypeScript
+- React
+- Vinext
+- CSS
 
-study-tracker-pomodoro/
-├── main.py
-├── timer.py
-├── database.py
-├── pomodoro.db
-└── README.md
+## Project structure
 
+```text
+Pomodoro-app/
+├── app/
+│   ├── main.py
+│   ├── session.py
+│   ├── timer.py
+│   ├── database.py
+│   └── pomodoro.db
+├── frontend/
+│   ├── app/
+│   ├── lib/
+│   │   ├── mocks/
+│   │   └── services/
+│   └── package.json
+├── docs/
+├── README.md
+└── requirements.txt        # added when the API dependencies are installed
+```
 
-### File Responsibilities
+### Back-end file responsibilities
 
-- `main.py`: controls the application menu and general program flow.
-- `timer.py`: contains the focus and break timer logic.
-- `database.py`: handles database creation, session storage, and queries.
-- `pomodoro.db`: stores the study session data locally.
-- `README.md`: contains the project documentation.
+- `app/main.py`: initializes the database and starts the terminal application.
+- `app/session.py`: controls the current terminal session flow.
+- `app/timer.py`: contains the terminal timer logic.
+- `app/database.py`: owns database initialization, persistence, and queries.
 
-## Database Structure
+### Front-end organization
 
-The current database contains a `sessions` table.
+- `frontend/app`: routes, reusable visual components, and global styles.
+- `frontend/lib/mocks`: temporary data used before the API is available.
+- `frontend/lib/services`: the boundary that will later make HTTP requests.
 
+## Current database
 
-Dates are stored using the following format:
+The SQLite database contains a `sessions` table:
 
-YYYY-MM-DD
+| Field | Type | Purpose |
+|---|---|---|
+| `id` | INTEGER | Unique session identifier |
+| `work_time` | INTEGER | Focus duration in minutes |
+| `rest_time` | INTEGER | Rest duration in minutes |
+| `session_date` | TEXT | Session date in `YYYY-MM-DD` format |
 
-Example:
+The database structure will evolve only when the back-end requirements make those
+changes necessary.
 
-2026-07-22
-
-## How to Run
+## Running locally
 
 ### Requirements
 
 - Python 3.10 or newer
-- Git, if you want to clone the repository
+- Node.js 22.13 or newer
+- pnpm
 
-SQLite support is already included with Python, so no additional database installation is required.
+SQLite support is included with Python.
 
-### Clone the Repository
-
-```bash
-git clone YOUR_REPOSITORY_URL
-```
-
-### Enter the Project Folder
+### Clone the repository
 
 ```bash
-cd YOUR_PROJECT_FOLDER
+git clone https://github.com/gabrielamarals/Pomodoro-app.git
+cd Pomodoro-app
 ```
 
-### Run the Application
+### Run the terminal back-end prototype
+
+From the project root:
 
 ```bash
-python main.py
+python app/main.py
 ```
 
-Depending on your system, you may need to use:
+Depending on the operating system, the command may be:
 
 ```bash
-python3 main.py
+python3 app/main.py
 ```
 
-## Application Flow
+### Run the front-end
 
-The first version of the application will provide a terminal menu similar to this:
-
-```text
-=== STUDY TRACKER POMODORO ===
-
-1 - Start a study session
-2 - Search sessions by date
-3 - View recent sessions
-4 - Exit
+```bash
+cd frontend
+pnpm install
+pnpm dev
 ```
 
-Each option calls a different part of the application.
+Open `http://localhost:3000` in the browser.
 
-For example, when a study session is completed, the application saves the focus time, break time, and current date in the SQLite database.
+The API is not available yet, so the front-end currently uses demonstration data.
 
-## Future Vision
+## Learning goals
 
-Future versions of the application may include a visual calendar.
+The project is also a practical learning environment for:
 
-Days could be displayed using different colors according to the user's study activity:
-
-- Green: study activity completed
-- Yellow: partial daily goal completed
-- Red: planned study goal not completed
-- Gray: rest day or future date
-
-Users may also be able to select a day and view information such as:
-
-- Total study time
-- Total break time
-- Number of completed sessions
-- Subjects studied
-- Study history for that date
-
-## Learning Goals
-
-This project is also being developed as a learning experience.
-
-The main concepts practiced during development include:
-
-- Python functions
-- Modules and file organization
-- Loops and conditional structures
-- Error handling
-- SQLite databases
-- SQL queries
-- Data persistence
-- Date manipulation
-- Back-end organization
-- Git and GitHub
-- Integration between back-end and front-end
-
-## Contributing
-
-This is currently a personal learning project, but suggestions and feedback are welcome.
+- Python and modular back-end organization;
+- relational databases and SQL;
+- data persistence and aggregation;
+- HTTP APIs and JSON contracts;
+- testing and debugging;
+- Git and GitHub;
+- front-end/back-end integration;
+- data analysis and future machine-learning applications;
+- technical decision-making and project documentation.
 
 ## Author
 
-Developed by Gabriel Augusto Amaral Silva.
+Product idea and back-end development by **Gabriel Augusto Amaral Silva**.
+
+Front-end developed collaboratively with **OpenAI Codex**, following the project's
+explicit separation of responsibilities.
