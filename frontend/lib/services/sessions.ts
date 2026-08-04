@@ -6,9 +6,17 @@ export type StudySession = {
   rest_time: number;
   session_date: string;
   goal: string | null;
+  category_id: number | null;
+  category_name: string | null;
 };
 
-export type SessionCreate = Omit<StudySession, "id">;
+export type SessionCreate = {
+  work_time: number;
+  rest_time: number;
+  session_date: string;
+  goal: string | null;
+  category_id: number | null;
+};
 
 export async function createSession(
   session: SessionCreate,

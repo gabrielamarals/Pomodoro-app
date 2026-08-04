@@ -5,6 +5,8 @@ import { AppNavigation } from "./components/AppNavigation";
 import { formatMinutes } from "../lib/formatters/time";
 import { useDailySummary } from "../lib/hooks/useDailySummary";
 import { createSession } from "../lib/services/sessions";
+import { useCategories } from "../lib/hooks/useCategories";
+import { CategoryRequestError } from "../lib/services/categories";
 
 type TimerMode = "focus" | "rest";
 type TimerStatus =
@@ -64,9 +66,20 @@ export default function Home() {
     hasError: dailySummaryError,
     refresh: refreshDailySummary,
   } = useDailySummary();
+  const {
+    categories,
+    hasError: categoriesError,
+    isLoading: categoriesLoading,
+    isCreating: isCreatingCategory,
+    addCategory,
+  } = useCategories();
   const [focusMinutes, setFocusMinutes] = useState(25);
   const [restMinutes, setRestMinutes] = useState(5);
   const [sessionGoal, setSessionGoal] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [categoryFormError, setCategoryFormError] = useState<string | null>(null);
   const [mode, setMode] = useState<TimerMode>("focus");
   const [status, setStatus] = useState<TimerStatus>("ready");
   const [remainingSeconds, setRemainingSeconds] = useState(focusMinutes * 60);
@@ -185,10 +198,10 @@ export default function Home() {
         rest_time: restMinutes,
         session_date: localDate,
         goal: sessionGoal.trim() || null,
+        category_id: selectedCategoryId,
       });
 
       refreshDailySummary();
-      setSessionGoal("");
       setMode("rest");
       setRemainingSeconds(restMinutes * 60);
       setStatus("running");
@@ -203,6 +216,31 @@ export default function Home() {
     setMode("focus");
     setStatus("ready");
     setRemainingSeconds(focusMinutes * 60);
+  }
+
+  async function handleCreateCategory() {
+    const normalizedName = newCategoryName.trim();
+
+    if (!normalizedName) {
+      setCategoryFormError("Digite um nome para a categoria.");
+      return;
+    }
+
+    setCategoryFormError(null);
+
+    try {
+      const createdCategory = await addCategory(normalizedName);
+      setSelectedCategoryId(createdCategory.id);
+      setNewCategoryName("");
+      setIsCategoryFormOpen(false);
+    } catch (error) {
+      if (error instanceof CategoryRequestError && error.status === 409) {
+        setCategoryFormError("Essa categoria já existe.");
+        return;
+      }
+
+      setCategoryFormError("Não foi possível criar a categoria.");
+    }
   }
 
   const primaryLabel =
@@ -321,20 +359,101 @@ export default function Home() {
                 <span className="status-badge">personalizado</span>
               </div>
 
-              <label className="session-goal-field">
-                <span>
+              <div className="session-category-field">
+                <label htmlFor="session-category">
+                  {mode === "rest" ? "Categoria do próximo foco" : "Categoria"}
+                </label>
+                <div className="category-select-row">
+                  <select
+                    disabled={goalLocked || categoriesLoading || categoriesError}
+                    id="session-category"
+                    onChange={(event) =>
+                      setSelectedCategoryId(
+                        event.target.value ? Number(event.target.value) : null,
+                      )
+                    }
+                    value={selectedCategoryId ?? ""}
+                  >
+                    <option value="">
+                      {categoriesLoading
+                        ? "Carregando categorias..."
+                        : categoriesError
+                          ? "Categorias indisponíveis"
+                          : "Sem categoria"}
+                    </option>
+                    {categories?.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    disabled={goalLocked || categoriesError}
+                    onClick={() => {
+                      setCategoryFormError(null);
+                      setIsCategoryFormOpen((current) => !current);
+                    }}
+                    type="button"
+                  >
+                    {isCategoryFormOpen ? "Fechar" : "+ Nova"}
+                  </button>
+                </div>
+
+                {isCategoryFormOpen && (
+                  <div className="category-create-panel">
+                    <input
+                      aria-label="Nome da nova categoria"
+                      disabled={isCreatingCategory}
+                      maxLength={50}
+                      onChange={(event) => setNewCategoryName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void handleCreateCategory();
+                        }
+                      }}
+                      placeholder="Ex.: Matemática"
+                      type="text"
+                      value={newCategoryName}
+                    />
+                    <button
+                      disabled={isCreatingCategory}
+                      onClick={() => void handleCreateCategory()}
+                      type="button"
+                    >
+                      {isCreatingCategory ? "Criando..." : "Criar"}
+                    </button>
+                    {categoryFormError && (
+                      <small role="alert">{categoryFormError}</small>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="session-goal-field">
+                <label htmlFor="session-goal">
                   {mode === "rest" ? "Objetivo da próxima sessão" : "Objetivo da sessão"}
-                </span>
+                </label>
                 <textarea
                   disabled={goalLocked}
+                  id="session-goal"
                   maxLength={160}
                   onChange={(event) => setSessionGoal(event.target.value)}
                   placeholder="Ex.: revisar consultas com GROUP BY"
                   rows={3}
                   value={sessionGoal}
                 />
-                <small>{sessionGoal.length}/160 · opcional</small>
-              </label>
+                <div className="session-goal-meta">
+                  <small>{sessionGoal.length}/160 · opcional</small>
+                  <button
+                    disabled={goalLocked || sessionGoal.length === 0}
+                    onClick={() => setSessionGoal("")}
+                    type="button"
+                  >
+                    Limpar
+                  </button>
+                </div>
+              </div>
 
               <DurationControl
                 label="Tempo de foco"

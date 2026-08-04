@@ -1,5 +1,5 @@
 type AppNavigationProps = {
-  activePage: "timer" | "progress" | "history";
+  activePage: "timer" | "progress" | "history" | "settings";
 };
 
 export function AppNavigation({ activePage }: AppNavigationProps) {
@@ -16,14 +16,16 @@ export function AppNavigation({ activePage }: AppNavigationProps) {
           href="/"
           aria-current={activePage === "timer" ? "page" : undefined}
         >
-          <span className="nav-dot" /> Temporizador
+          <span className="nav-icon" aria-hidden="true">⏱︎</span>
+          Temporizador
         </a>
         <a
           className={`nav-item ${activePage === "progress" ? "active" : ""}`}
           href="/progress"
           aria-current={activePage === "progress" ? "page" : undefined}
         >
-          <span className="nav-dot" /> Progresso
+          <span className="nav-icon" aria-hidden="true">▥</span>
+          Progresso
         </a>
         <span className="nav-item muted" title="Disponível em uma próxima etapa">
           Calendário <small>em breve</small>
@@ -33,7 +35,16 @@ export function AppNavigation({ activePage }: AppNavigationProps) {
           href="/history"
           aria-current={activePage === "history" ? "page" : undefined}
         >
-          <span className="nav-dot" /> Histórico
+          <span className="nav-icon" aria-hidden="true">↺</span>
+          Histórico
+        </a>
+        <a
+          className={`nav-item ${activePage === "settings" ? "active" : ""}`}
+          href="/settings"
+          aria-current={activePage === "settings" ? "page" : undefined}
+        >
+          <span className="nav-icon" aria-hidden="true">⚙︎</span>
+          Configurações
         </a>
       </nav>
 

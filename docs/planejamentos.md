@@ -290,7 +290,9 @@ Estado atual:
 - [x] `goal` opcional integrado ao `POST /sessions`;
 - [x] campo de objetivo adicionado antes do foco;
 - [x] objetivo exibido no histórico e nos detalhes do calendário;
-- [ ] categorias de estudo.
+- [x] categorias de estudo integradas ao banco e à API;
+- [x] seletor e criação de categoria no temporizador;
+- [x] categoria exibida no histórico e nos detalhes do calendário.
 
 ## 3.2 Reflexão rápida depois da sessão
 
@@ -427,18 +429,18 @@ Exemplo adequado:
 
 **Objetivo:** personalizar sem comprometer legibilidade.
 
-## Temas planejados
+## Temas
 
-- [ ] Floresta — paleta atual;
-- [ ] Oceano;
-- [ ] Noturno;
-- [ ] Crimson — grafite e vermelho, tema pessoal do Gabriel.
+- [x] Natural — paleta clara original;
+- [x] Oceano — azul profundo e tons frios;
+- [x] Ember — preto e vermelho, tema pessoal do Gabriel;
+- [ ] outros temas poderão ser adicionados depois de testes com usuários.
 
 Primeira implementação:
 
-- preferência salva no navegador;
-- temas definidos por variáveis CSS;
-- contraste e acessibilidade preservados.
+- [x] preferência salva no navegador;
+- [x] temas definidos por variáveis CSS;
+- [x] contraste e acessibilidade preservados.
 
 Depois de autenticação:
 

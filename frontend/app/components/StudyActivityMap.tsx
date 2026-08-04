@@ -159,7 +159,9 @@ export function StudyActivityMap({
                         <span className="activity-session-goal">
                           {session.goal || "Sem objetivo definido"}
                         </span>
-                        <small>{session.rest_time} min de descanso</small>
+                        <small>
+                          {session.category_name || "Sem categoria"} · {session.rest_time} min de descanso
+                        </small>
                       </div>
                     ))}
                   </div>

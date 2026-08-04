@@ -98,7 +98,9 @@ export default function HistoryPage() {
                         </div>
                         <div className="history-session-label">
                           <strong>{session.goal || "Sessão sem objetivo definido"}</strong>
-                          <small>Registro #{session.id}</small>
+                          <small>
+                            {session.category_name || "Sem categoria"} · Registro #{session.id}
+                          </small>
                         </div>
                         <div className="history-session-metric">
                           <span>Foco</span>
