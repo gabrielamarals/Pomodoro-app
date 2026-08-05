@@ -5,31 +5,45 @@ import { StudyActivityMap } from "../components/StudyActivityMap";
 import { TodaySummaryCard } from "../components/TodaySummaryCard";
 import { formatMinutes } from "../../lib/formatters/time";
 import { useMonthlySummary } from "../../lib/hooks/useMonthlySummary";
-import {
-  getProgressOverview,
-  getWeeklySummary,
-} from "../../lib/services/progress";
+import { useWeeklySummary } from "../../lib/hooks/useWeeklySummary";
 
 const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 export default function ProgressPage() {
-  const week = getWeeklySummary();
+  const {
+    currentWeek,
+    weeklyTotal,
+    previousWeekTotal,
+    hasError: weeklySummaryError,
+    isLoading: weeklySummaryLoading,
+  } = useWeeklySummary();
+  const week = currentWeek ?? [];
   const {
     month,
     summaries: monthlySummaries,
     hasError: monthlySummaryError,
+    isLoading: monthlySummaryLoading,
+    isCurrentMonth,
+    showPreviousMonth,
+    showNextMonth,
+    showCurrentMonth,
   } = useMonthlySummary();
-  const overview = getProgressOverview();
   const monthlyTotal = (monthlySummaries ?? []).reduce(
     (total, day) => total + day.total_work_time,
     0,
   );
   const highestDay = Math.max(...week.map((day) => day.total_work_time), 1);
-  const comparison = Math.round(
-    ((overview.weekly_total - overview.previous_week_total) /
-      overview.previous_week_total) *
-      100,
-  );
+  const comparison =
+    previousWeekTotal > 0
+      ? Math.round(((weeklyTotal - previousWeekTotal) / previousWeekTotal) * 100)
+      : null;
+  const weeklyStatus = weeklySummaryError
+    ? "API indisponível"
+    : weeklySummaryLoading
+      ? "carregando..."
+      : comparison === null
+        ? "sem base na semana anterior"
+        : `${Math.abs(comparison)}% ${comparison >= 0 ? "acima" : "abaixo"} da semana anterior`;
 
   return (
     <main className="app-shell">
@@ -41,29 +55,29 @@ export default function ProgressPage() {
             <p className="eyebrow">Seu ritmo de estudos</p>
             <h1>Progresso que você consegue enxergar.</h1>
           </div>
-          <span className="demo-badge">dados demonstrativos</span>
+          <span className="demo-badge">conectado à API</span>
         </header>
 
         <section className="stats-grid" aria-label="Resumo de progresso">
           <TodaySummaryCard />
           <article className="stat-card">
             <span>Esta semana</span>
-            <strong>{formatMinutes(overview.weekly_total)}</strong>
-            <small>{comparison}% acima da semana anterior</small>
+            <strong>{weeklySummaryLoading ? "—" : formatMinutes(weeklyTotal)}</strong>
+            <small>{weeklyStatus}</small>
           </article>
           <article className="stat-card">
-            <span>Este mês</span>
+            <span>Mês exibido</span>
             <strong>
-              {monthlySummaries ? formatMinutes(monthlyTotal) : "—"}
+              {monthlySummaryLoading ? "—" : formatMinutes(monthlyTotal)}
             </strong>
             <small>
-              {monthlySummaryError ? "API indisponível" : "tempo real de foco"}
+              {monthlySummaryError ? "API indisponível" : "tempo no mês selecionado"}
             </small>
           </article>
           <article className="stat-card">
             <span>Sequência atual</span>
-            <strong>{overview.current_streak} dias</strong>
-            <small>estudando com consistência</small>
+            <strong>—</strong>
+            <small>em desenvolvimento</small>
           </article>
         </section>
 
@@ -71,10 +85,10 @@ export default function ProgressPage() {
           <section className="chart-card" aria-labelledby="weekly-chart-title">
             <div className="progress-card-heading">
               <div>
-                <p className="eyebrow">Últimos sete dias</p>
+                <p className="eyebrow">Semana atual</p>
                 <h2 id="weekly-chart-title">Ritmo semanal</h2>
               </div>
-              <strong>{formatMinutes(overview.weekly_total)}</strong>
+              <strong>{weeklySummaryLoading ? "—" : formatMinutes(weeklyTotal)}</strong>
             </div>
 
             <div className="weekly-chart">
@@ -97,35 +111,59 @@ export default function ProgressPage() {
                   </div>
                 );
               })}
+              {weeklySummaryError && (
+                <p className="weekly-chart-message">Não foi possível carregar a semana.</p>
+              )}
+              {weeklySummaryLoading && (
+                <p className="weekly-chart-message">Carregando dados semanais...</p>
+              )}
             </div>
           </section>
 
           <aside className="insight-card">
             <p className="eyebrow">Comparação</p>
-            <h2>Você avançou nesta semana.</h2>
-            <strong className="comparison-value">+{comparison}%</strong>
+            <h2>
+              {comparison === null
+                ? "Sua comparação começa aqui."
+                : comparison >= 0
+                  ? "Você avançou nesta semana."
+                  : "Cada semana tem seu próprio ritmo."}
+            </h2>
+            <strong className="comparison-value">
+              {comparison === null ? "—" : `${comparison > 0 ? "+" : ""}${comparison}%`}
+            </strong>
             <p>
-              Foram {formatMinutes(overview.weekly_total - overview.previous_week_total)} a
-              mais que na semana anterior.
+              {comparison === null
+                ? "Complete sessões em semanas diferentes para acompanhar sua evolução."
+                : `${formatMinutes(Math.abs(weeklyTotal - previousWeekTotal))} ${weeklyTotal >= previousWeekTotal ? "a mais" : "a menos"} que na semana anterior.`}
             </p>
             <div className="comparison-lines">
               <div>
                 <span>Semana atual</span>
-                <strong>{formatMinutes(overview.weekly_total)}</strong>
+                <strong>{formatMinutes(weeklyTotal)}</strong>
               </div>
               <div>
                 <span>Semana anterior</span>
-                <strong>{formatMinutes(overview.previous_week_total)}</strong>
+                <strong>{formatMinutes(previousWeekTotal)}</strong>
               </div>
             </div>
           </aside>
         </div>
 
-        <StudyActivityMap month={month} summaries={monthlySummaries ?? []} />
+        <StudyActivityMap
+          hasError={monthlySummaryError}
+          isCurrentMonth={isCurrentMonth}
+          isLoading={monthlySummaryLoading}
+          month={month}
+          onCurrentMonth={showCurrentMonth}
+          onNextMonth={showNextMonth}
+          onPreviousMonth={showPreviousMonth}
+          summaries={monthlySummaries ?? []}
+        />
 
         <p className="data-note">
-          Os números desta tela são temporários. Quando sua API estiver pronta, apenas o
-          serviço de dados será substituído.
+          Resumos diário, semanal e mensal carregados diretamente da sua API. A sequência
+          de estudos será o próximo dado a ser integrado.
         </p>
       </section>
     </main>

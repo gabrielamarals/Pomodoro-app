@@ -1,3 +1,5 @@
+import type { StudySession } from "./sessions";
+
 const API_BASE_URL = "http://127.0.0.1:8000";
 
 export type Category = {
@@ -40,4 +42,20 @@ export async function createCategory(name: string): Promise<Category> {
   }
 
   return response.json() as Promise<Category>;
+}
+
+export async function fetchSessionsByCategory(
+  categoryId: number,
+  signal?: AbortSignal,
+): Promise<StudySession[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/categories/${categoryId}/sessions`,
+    { signal },
+  );
+
+  if (!response.ok) {
+    throw new CategoryRequestError(response.status);
+  }
+
+  return response.json() as Promise<StudySession[]>;
 }

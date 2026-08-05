@@ -1,5 +1,6 @@
 import sqlite3
 from pathlib import Path
+from datetime import date, timedelta
 
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE_PATH = BASE_DIR / "pomodoro.db"
@@ -46,6 +47,21 @@ def initialize_database():
             ADD COLUMN category_id INTEGER
             REFERENCES categories(id)
             ON DELETE SET NULL;
+        """)
+    if "focus_quality" not in column_names:
+        cursor.execute("""
+            ALTER TABLE sessions
+            ADD COLUMN focus_quality INTEGER;
+        """)
+    if "distraction" not in column_names:
+        cursor.execute("""
+            ALTER TABLE sessions
+            ADD COLUMN distraction TEXT;
+        """)
+    if "distraction_note" not in column_names:
+        cursor.execute("""
+            ALTER TABLE sessions
+            ADD COLUMN distraction_note TEXT;
         """)
 
     connection.commit()
@@ -95,6 +111,46 @@ def get_categories():
     connection.close()
     return categories 
 
+def get_sessions_by_category(category_id):
+    connection = get_database_connection()
+    cursor = connection.cursor()
+    cursor.execute("""
+        SELECT
+            s.id,
+            s.work_time,
+            s.rest_time,
+            s.session_date,
+            s.goal,
+            s.category_id,
+            c.name AS category_name,
+            s.focus_quality,
+            s.distraction,
+            s.distraction_note
+        FROM sessions AS s
+        LEFT JOIN categories AS c
+            ON s.category_id = c.id
+        WHERE s.category_id = ?
+        ORDER BY s.session_date DESC, s.id DESC
+    """, (category_id,))
+    data = cursor.fetchall()
+    sessions_in_category = []
+    for session_id, work_time, rest_time, session_date, session_goal, session_category_id, category_name, focus_quality, distraction, distraction_note in data:
+        sessions_in_category.append({
+            "id": session_id,
+            "work_time": work_time,
+            "rest_time": rest_time,
+            "session_date": session_date,
+            "goal": session_goal,
+            "category_id": session_category_id,
+            "category_name": category_name,
+            "focus_quality": focus_quality,
+            "distraction": distraction,
+            "distraction_note": distraction_note
+        })
+    cursor.close()
+    connection.close()
+    return sessions_in_category
+
 
 
 
@@ -120,7 +176,10 @@ def save_session(work_time, rest_time, session_date, goal=None, category_id=None
             "rest_time" : rest_time,
             "session_date" : str(session_date),
             "goal" : goal,
-            "category_id" : category_id
+            "category_id" : category_id,
+            "focus_quality": None,
+            "distraction": None,
+            "distraction_note": None
         }
     finally:
         cursor.close()
@@ -186,7 +245,10 @@ def get_sessions_by_date(session_date):
         s.session_date,
         s.goal,
         s.category_id,
-        c.name AS category_name
+        c.name AS category_name,
+        s.focus_quality,
+        s.distraction,
+        s.distraction_note
     FROM sessions AS s
     LEFT JOIN categories AS c
         ON s.category_id = c.id
@@ -195,7 +257,7 @@ def get_sessions_by_date(session_date):
 """, (str(session_date),))
     data = cursor.fetchall()
     sessions_in_this_date = []
-    for session_id, work_time, rest_time, session_date_value, session_goal, category_id, category_name in data:
+    for session_id, work_time, rest_time, session_date_value, session_goal, category_id, category_name, focus_quality, distraction, distraction_note in data:
         sessions_in_this_date.append({
             "id" : session_id,
             "work_time" : work_time,
@@ -203,7 +265,10 @@ def get_sessions_by_date(session_date):
             "session_date" : session_date_value,
             "goal" : session_goal,
             "category_id" : category_id,
-            "category_name" : category_name
+            "category_name" : category_name,
+            "focus_quality": focus_quality,
+            "distraction": distraction,
+            "distraction_note": distraction_note
         })
     cursor.close()
     connection.close()
@@ -220,7 +285,10 @@ def get_recent_sessions(limit=20):
         s.session_date,
         s.goal,
         s.category_id,
-        c.name AS category_name
+        c.name AS category_name,
+        s.focus_quality,
+        s.distraction,
+        s.distraction_note
     FROM sessions AS s
     LEFT JOIN categories AS c
         ON s.category_id = c.id
@@ -229,7 +297,7 @@ def get_recent_sessions(limit=20):
 """, (limit,))
     recent_sessions = []
     data = cursor.fetchall()
-    for session_id, work_time, rest_time, session_date, session_goal, category_id, category_name  in data:
+    for session_id, work_time, rest_time, session_date, session_goal, category_id, category_name, focus_quality, distraction, distraction_note in data:
         recent_sessions.append({
             "id" : session_id,
             "work_time" : work_time,
@@ -237,9 +305,95 @@ def get_recent_sessions(limit=20):
             "session_date" : session_date,
             "goal" : session_goal,
             "category_id" : category_id,
-            "category_name" : category_name
+            "category_name" : category_name,
+            "focus_quality": focus_quality,
+            "distraction": distraction,
+            "distraction_note": distraction_note
         })
     cursor.close()
     connection.close()
     return recent_sessions
 
+def update_session_reflection(
+    session_id,
+    focus_quality,
+    distraction=None,
+    distraction_note=None
+):
+    connection = get_database_connection()
+    cursor = connection.cursor()
+    try:
+        cursor.execute("""
+            UPDATE sessions
+            SET focus_quality = ?,
+                distraction = ?,
+                distraction_note = ?
+            WHERE id = ?
+        """, (focus_quality, distraction, distraction_note, session_id))
+
+        if cursor.rowcount == 0:
+            return None
+
+        connection.commit()
+        cursor.execute("""
+            SELECT
+                s.id,
+                s.work_time,
+                s.rest_time,
+                s.session_date,
+                s.goal,
+                s.category_id,
+                c.name AS category_name,
+                s.focus_quality,
+                s.distraction,
+                s.distraction_note
+            FROM sessions AS s
+            LEFT JOIN categories AS c
+                ON s.category_id = c.id
+            WHERE s.id = ?
+        """, (session_id,))
+        row = cursor.fetchone()
+        return {
+            "id": row[0],
+            "work_time": row[1],
+            "rest_time": row[2],
+            "session_date": row[3],
+            "goal": row[4],
+            "category_id": row[5],
+            "category_name": row[6],
+            "focus_quality": row[7],
+            "distraction": row[8],
+            "distraction_note": row[9]
+        }
+    finally:
+        cursor.close()
+        connection.close()
+
+def get_weekly_summary(start_date:date):
+    end_date = start_date + timedelta(days=6)
+    connection = get_database_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("""
+        SELECT
+            session_date,
+            COUNT(*) AS session_count,
+            COALESCE(SUM(work_time), 0) AS total_work_time
+        FROM sessions
+        WHERE session_date BETWEEN ? AND ?
+        GROUP BY session_date
+        ORDER BY session_date
+    """, (str(start_date), str(end_date)))
+    data = cursor.fetchall()
+    weekly_data = []
+
+    for session_date, session_count, total_work_time in data:
+        weekly_data.append({
+            "date": session_date,
+            "session_count": session_count,
+            "total_work_time": total_work_time
+        })
+    cursor.close()
+    connection.close()
+
+    return weekly_data

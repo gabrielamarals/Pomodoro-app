@@ -4,7 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppNavigation } from "./components/AppNavigation";
 import { formatMinutes } from "../lib/formatters/time";
 import { useDailySummary } from "../lib/hooks/useDailySummary";
-import { createSession } from "../lib/services/sessions";
+import {
+  createSession,
+  updateSessionReflection,
+} from "../lib/services/sessions";
 import { useCategories } from "../lib/hooks/useCategories";
 import { CategoryRequestError } from "../lib/services/categories";
 
@@ -17,11 +20,61 @@ type TimerStatus =
   | "save-error"
   | "completed";
 
+type DistractionOption =
+  | "noise"
+  | "tiredness"
+  | "phone"
+  | "anxiety"
+  | "difficulty"
+  | "interruption"
+  | "none"
+  | "other";
+
+type PersistedTimerState = {
+  mode: TimerMode;
+  status: TimerStatus;
+  remainingSeconds: number;
+  endAt: number | null;
+  focusMinutes: number;
+  restMinutes: number;
+  sessionGoal: string;
+  selectedCategoryId: number | null;
+  activeSessionId: number | null;
+  focusQuality: number | null;
+  distraction: DistractionOption | null;
+  distractionNote: string;
+  reflectionSkipped: boolean;
+  immersiveMode: boolean;
+};
+
+const TIMER_STORAGE_KEY = "pomodoro.timer.v1";
+
 function formatTime(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
+
+function getAudioContextConstructor() {
+  if (typeof window === "undefined") return null;
+
+  return (
+    window.AudioContext ??
+    (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext ??
+    null
+  );
+}
+
+const DISTRACTION_OPTIONS: Array<{ value: DistractionOption; label: string }> = [
+  { value: "noise", label: "Barulho" },
+  { value: "tiredness", label: "Cansaço" },
+  { value: "phone", label: "Celular" },
+  { value: "anxiety", label: "Ansiedade" },
+  { value: "difficulty", label: "Dificuldade" },
+  { value: "interruption", label: "Interrupção" },
+  { value: "none", label: "Nada" },
+  { value: "other", label: "Outro" },
+];
 
 function DurationControl({
   label,
@@ -83,7 +136,19 @@ export default function Home() {
   const [mode, setMode] = useState<TimerMode>("focus");
   const [status, setStatus] = useState<TimerStatus>("ready");
   const [remainingSeconds, setRemainingSeconds] = useState(focusMinutes * 60);
+  const [endAt, setEndAt] = useState<number | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
+  const [focusQuality, setFocusQuality] = useState<number | null>(null);
+  const [distraction, setDistraction] = useState<DistractionOption | null>(null);
+  const [distractionNote, setDistractionNote] = useState("");
+  const [reflectionSkipped, setReflectionSkipped] = useState(false);
+  const [reflectionStatus, setReflectionStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const [immersiveMode, setImmersiveMode] = useState(false);
   const saveStartedRef = useRef(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   const totalSeconds = (mode === "focus" ? focusMinutes : restMinutes) * 60;
   const progress = Math.max(0, Math.min(100, (remainingSeconds / totalSeconds) * 100));
@@ -105,33 +170,162 @@ export default function Home() {
     Math.round(((today?.total_work_time ?? 0) / dailyGoalMinutes) * 100),
   );
 
+  function prepareCompletionSound() {
+    const AudioContextConstructor = getAudioContextConstructor();
+    if (!AudioContextConstructor) return;
+
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioContextConstructor();
+    }
+
+    void audioContextRef.current.resume();
+  }
+
+  function announceTimerChange(title: string, body: string) {
+    prepareCompletionSound();
+
+    const audioContext = audioContextRef.current;
+    if (audioContext) {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.frequency.value = 660;
+      oscillator.type = "sine";
+      gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.16, audioContext.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.5);
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + 0.52);
+    }
+
+    if ("Notification" in window && Notification.permission === "granted") {
+      new Notification(title, { body });
+    }
+  }
+
+  function requestNotificationPermission() {
+    if ("Notification" in window && Notification.permission === "default") {
+      void Notification.requestPermission();
+    }
+  }
+
   useEffect(() => {
-    if (status !== "running") return;
+    try {
+      const savedState = window.localStorage.getItem(TIMER_STORAGE_KEY);
 
-    const interval = window.setInterval(() => {
-      setRemainingSeconds((current) => Math.max(0, current - 1));
-    }, 1000);
+      if (savedState) {
+        const saved = JSON.parse(savedState) as PersistedTimerState;
+        const restoredStatus =
+          saved.status === "saving" || saved.status === "save-error"
+            ? "ready"
+            : saved.status;
+        const restoredRemaining =
+          restoredStatus === "running" && saved.endAt
+            ? Math.max(0, Math.ceil((saved.endAt - Date.now()) / 1000))
+            : saved.remainingSeconds;
 
+        setFocusMinutes(saved.focusMinutes);
+        setRestMinutes(saved.restMinutes);
+        setSessionGoal(saved.sessionGoal);
+        setSelectedCategoryId(saved.selectedCategoryId);
+        setActiveSessionId(saved.activeSessionId ?? null);
+        setFocusQuality(saved.focusQuality ?? null);
+        setDistraction(saved.distraction ?? null);
+        setDistractionNote(saved.distractionNote ?? "");
+        setReflectionSkipped(saved.reflectionSkipped ?? false);
+        setImmersiveMode(saved.immersiveMode ?? false);
+        setMode(saved.mode);
+        setStatus(restoredStatus);
+        setRemainingSeconds(restoredRemaining);
+        setEndAt(restoredStatus === "running" ? saved.endAt : null);
+      }
+    } catch {
+      window.localStorage.removeItem(TIMER_STORAGE_KEY);
+    } finally {
+      setIsHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isHydrated || status !== "running") return;
+
+    function updateRemainingTime() {
+      if (!endAt) {
+        setEndAt(Date.now() + remainingSeconds * 1000);
+        return;
+      }
+      setRemainingSeconds(Math.max(0, Math.ceil((endAt - Date.now()) / 1000)));
+    }
+
+    updateRemainingTime();
+    const interval = window.setInterval(updateRemainingTime, 250);
     return () => window.clearInterval(interval);
-  }, [status]);
+  }, [endAt, isHydrated, status]);
 
   useEffect(() => {
-    if (status !== "running" || remainingSeconds !== 0) return;
+    if (!isHydrated || status !== "running" || remainingSeconds !== 0) return;
 
     if (mode === "focus") {
       void saveCompletedFocus();
     } else {
       saveStartedRef.current = false;
+      announceTimerChange("Descanso concluído", "Seu próximo foco está pronto.");
+      setActiveSessionId(null);
+      setFocusQuality(null);
+      setDistraction(null);
+      setDistractionNote("");
+      setReflectionSkipped(false);
+      setReflectionStatus("idle");
       setMode("focus");
       setRemainingSeconds(focusMinutes * 60);
+      setEndAt(Date.now() + focusMinutes * 60_000);
       setStatus("running");
     }
-  }, [focusMinutes, mode, remainingSeconds, status]);
+  }, [focusMinutes, isHydrated, mode, remainingSeconds, status]);
 
   useEffect(() => {
-    if (status !== "ready") return;
+    if (!isHydrated || status !== "ready") return;
     setRemainingSeconds((mode === "focus" ? focusMinutes : restMinutes) * 60);
-  }, [focusMinutes, mode, restMinutes, status]);
+  }, [focusMinutes, isHydrated, mode, restMinutes, status]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    const persistedState: PersistedTimerState = {
+      mode,
+      status,
+      remainingSeconds,
+      endAt,
+      focusMinutes,
+      restMinutes,
+      sessionGoal,
+      selectedCategoryId,
+      activeSessionId,
+      focusQuality,
+      distraction,
+      distractionNote,
+      reflectionSkipped,
+      immersiveMode,
+    };
+
+    window.localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(persistedState));
+  }, [
+    activeSessionId,
+    distraction,
+    distractionNote,
+    endAt,
+    focusMinutes,
+    focusQuality,
+    immersiveMode,
+    isHydrated,
+    mode,
+    reflectionSkipped,
+    restMinutes,
+    selectedCategoryId,
+    sessionGoal,
+    status,
+  ]);
 
   const statusLabel = useMemo(() => {
     if (status === "running") return mode === "focus" ? "Foco em andamento" : "Hora de respirar";
@@ -152,6 +346,8 @@ export default function Home() {
     setMode(nextMode);
     setStatus("ready");
     setRemainingSeconds((nextMode === "focus" ? focusMinutes : restMinutes) * 60);
+    setEndAt(null);
+    setImmersiveMode(false);
   }
 
   function handlePrimaryAction() {
@@ -166,10 +362,17 @@ export default function Home() {
       setMode("focus");
       setStatus("ready");
       setRemainingSeconds(focusMinutes * 60);
+      setEndAt(null);
+      setImmersiveMode(false);
       return;
     }
 
     if (status === "running") {
+      const pausedRemaining = endAt
+        ? Math.max(0, Math.ceil((endAt - Date.now()) / 1000))
+        : remainingSeconds;
+      setRemainingSeconds(pausedRemaining);
+      setEndAt(null);
       setStatus("paused");
       return;
     }
@@ -178,6 +381,12 @@ export default function Home() {
       saveStartedRef.current = false;
     }
 
+    if (status === "ready" || status === "paused") {
+      setImmersiveMode(true);
+    }
+    requestNotificationPermission();
+    prepareCompletionSound();
+    setEndAt(Date.now() + remainingSeconds * 1000);
     setStatus("running");
   }
 
@@ -185,6 +394,7 @@ export default function Home() {
     if (saveStartedRef.current) return;
 
     saveStartedRef.current = true;
+    setEndAt(null);
     setStatus("saving");
 
     try {
@@ -193,7 +403,7 @@ export default function Home() {
         .toISOString()
         .slice(0, 10);
 
-      await createSession({
+      const createdSession = await createSession({
         work_time: focusMinutes,
         rest_time: restMinutes,
         session_date: localDate,
@@ -202,8 +412,17 @@ export default function Home() {
       });
 
       refreshDailySummary();
+      setActiveSessionId(createdSession.id);
+      setFocusQuality(null);
+      setDistraction(null);
+      setDistractionNote("");
+      setReflectionSkipped(false);
+      setReflectionStatus("idle");
+      announceTimerChange("Foco concluído", "O descanso começou automaticamente.");
+      setImmersiveMode(false);
       setMode("rest");
       setRemainingSeconds(restMinutes * 60);
+      setEndAt(Date.now() + restMinutes * 60_000);
       setStatus("running");
     } catch {
       saveStartedRef.current = false;
@@ -216,6 +435,31 @@ export default function Home() {
     setMode("focus");
     setStatus("ready");
     setRemainingSeconds(focusMinutes * 60);
+    setEndAt(null);
+    setActiveSessionId(null);
+    setFocusQuality(null);
+    setDistraction(null);
+    setDistractionNote("");
+    setReflectionSkipped(false);
+    setReflectionStatus("idle");
+    setImmersiveMode(false);
+  }
+
+  async function saveReflection() {
+    if (activeSessionId === null || focusQuality === null) return;
+
+    setReflectionStatus("saving");
+
+    try {
+      await updateSessionReflection(activeSessionId, {
+        focus_quality: focusQuality,
+        distraction,
+        distraction_note: distraction === "other" ? distractionNote.trim() || null : null,
+      });
+      setReflectionStatus("saved");
+    } catch {
+      setReflectionStatus("error");
+    }
   }
 
   async function handleCreateCategory() {
@@ -259,7 +503,7 @@ export default function Home() {
                 : "Iniciar descanso";
 
   return (
-    <main className={`app-shell mode-${mode}`}>
+    <main className={`app-shell mode-${mode} ${immersiveMode ? "focus-mode" : ""}`}>
       <AppNavigation activePage="timer" />
 
       <section className="workspace" id="timer">
@@ -276,6 +520,18 @@ export default function Home() {
 
         <div className="content-grid">
           <section className="timer-card" aria-labelledby="timer-title">
+            {(status === "running" || status === "paused") && (
+              <button
+                aria-expanded={!immersiveMode}
+                aria-label={immersiveMode ? "Mostrar controles" : "Ocultar controles"}
+                className="focus-mode-toggle"
+                onClick={() => setImmersiveMode((current) => !current)}
+                type="button"
+              >
+                <span aria-hidden="true">{immersiveMode ? "☰" : "×"}</span>
+                {immersiveMode ? "Mostrar controles" : "Ocultar controles"}
+              </button>
+            )}
             <div className="mode-switch" aria-label="Selecionar modo">
               <button
                 type="button"
@@ -469,6 +725,94 @@ export default function Home() {
               />
               <p className="helper-text">As durações podem ser alteradas antes de iniciar.</p>
             </section>
+
+            {mode === "rest" &&
+              status === "running" &&
+              activeSessionId !== null &&
+              !reflectionSkipped && (
+                <section className="reflection-card" aria-labelledby="reflection-title">
+                  <div className="card-heading">
+                    <div>
+                      <p className="eyebrow">Check-in rápido</p>
+                      <h2 id="reflection-title">Como foi seu foco?</h2>
+                    </div>
+                    <span className="status-badge">opcional</span>
+                  </div>
+
+                  <div className="reflection-quality" aria-label="Qualidade do foco de zero a cinco">
+                    {[0, 1, 2, 3, 4, 5].map((quality) => (
+                      <button
+                        aria-label={`${quality} de 5 de foco`}
+                        aria-pressed={focusQuality === quality}
+                        className={focusQuality === quality ? "selected" : ""}
+                        key={quality}
+                        onClick={() => setFocusQuality(quality)}
+                        type="button"
+                      >
+                        <span aria-hidden="true">{quality === 0 ? "☆" : "★"}</span>
+                        <small>{quality}</small>
+                      </button>
+                    ))}
+                  </div>
+
+                  <p className="reflection-question">O que mais atrapalhou?</p>
+                  <div className="reflection-options">
+                    {DISTRACTION_OPTIONS.map((option) => (
+                      <button
+                        aria-pressed={distraction === option.value}
+                        className={distraction === option.value ? "selected" : ""}
+                        key={option.value}
+                        onClick={() => setDistraction(option.value)}
+                        type="button"
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {distraction === "other" && (
+                    <input
+                      aria-label="Descreva outra distração"
+                      className="reflection-note-input"
+                      maxLength={160}
+                      onChange={(event) => setDistractionNote(event.target.value)}
+                      placeholder="Descreva brevemente"
+                      value={distractionNote}
+                    />
+                  )}
+
+                  <div className="reflection-actions">
+                    <button
+                      className="reflection-save"
+                      disabled={focusQuality === null || reflectionStatus === "saving"}
+                      onClick={() => void saveReflection()}
+                      type="button"
+                    >
+                      {reflectionStatus === "saving" ? "Salvando..." : "Salvar check-in"}
+                    </button>
+                    <button
+                      className="reflection-skip"
+                      disabled={reflectionStatus === "saving"}
+                      onClick={() => {
+                        setReflectionSkipped(true);
+                        setReflectionStatus("idle");
+                      }}
+                      type="button"
+                    >
+                      Pular
+                    </button>
+                  </div>
+
+                  {reflectionStatus === "saved" && (
+                    <small className="reflection-feedback">Check-in salvo.</small>
+                  )}
+                  {reflectionStatus === "error" && (
+                    <small className="reflection-feedback error">
+                      Não foi possível salvar. Tente novamente.
+                    </small>
+                  )}
+                </section>
+              )}
 
             <section className="progress-card" aria-labelledby="today-title">
               <div className="card-heading">

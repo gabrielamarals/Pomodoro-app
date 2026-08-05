@@ -1,5 +1,5 @@
 type AppNavigationProps = {
-  activePage: "timer" | "progress" | "history" | "settings";
+  activePage: "timer" | "progress" | "categories" | "history" | "settings";
 };
 
 export function AppNavigation({ activePage }: AppNavigationProps) {
@@ -37,6 +37,14 @@ export function AppNavigation({ activePage }: AppNavigationProps) {
         >
           <span className="nav-icon" aria-hidden="true">↺</span>
           Histórico
+        </a>
+        <a
+          className={`nav-item ${activePage === "categories" ? "active" : ""}`}
+          href="/categories"
+          aria-current={activePage === "categories" ? "page" : undefined}
+        >
+          <span className="nav-icon" aria-hidden="true">⌂</span>
+          Categorias
         </a>
         <a
           className={`nav-item ${activePage === "settings" ? "active" : ""}`}

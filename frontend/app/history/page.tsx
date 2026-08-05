@@ -12,6 +12,17 @@ function formatDate(date: string) {
   }).format(new Date(`${date}T12:00:00`));
 }
 
+const DISTRACTION_LABELS: Record<string, string> = {
+  noise: "barulho",
+  tiredness: "cansaço",
+  phone: "celular",
+  anxiety: "ansiedade",
+  difficulty: "dificuldade",
+  interruption: "interrupção",
+  none: "nenhuma distração",
+  other: "outra distração",
+};
+
 function groupSessionsByDate(sessions: StudySession[]) {
   return sessions.reduce<Record<string, StudySession[]>>((groups, session) => {
     groups[session.session_date] ??= [];
@@ -100,6 +111,11 @@ export default function HistoryPage() {
                           <strong>{session.goal || "Sessão sem objetivo definido"}</strong>
                           <small>
                             {session.category_name || "Sem categoria"} · Registro #{session.id}
+                          </small>
+                          <small>
+                            {session.focus_quality === null
+                              ? "Sem check-in"
+                              : `Foco ${session.focus_quality}/5${session.distraction ? ` · ${DISTRACTION_LABELS[session.distraction] ?? session.distraction}` : ""}`}
                           </small>
                         </div>
                         <div className="history-session-metric">

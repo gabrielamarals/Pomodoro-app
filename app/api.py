@@ -3,6 +3,7 @@ from datetime import date
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from typing import Literal
 import uvicorn
 
 from database import (
@@ -12,7 +13,11 @@ from database import (
     get_sessions_by_date,
     save_session,
     create_category,
-    get_categories
+    get_categories,
+    get_sessions_by_category,
+    get_weekly_summary,
+    update_session_reflection,
+    initialize_database
 )
 
 class CategoryCreate(BaseModel):
@@ -24,6 +29,23 @@ class SessionCreate(BaseModel):
     session_date: date
     goal: str | None = Field(default=None, max_length=160)
     category_id: int | None = Field(default=None, ge=1)
+
+class SessionReflectionUpdate(BaseModel):
+    focus_quality: int = Field(ge=0, le=5)
+    distraction: Literal[
+        "noise",
+        "tiredness",
+        "phone",
+        "anxiety",
+        "difficulty",
+        "interruption",
+        "none",
+        "other"
+    ] | None = None
+    distraction_note: str | None = Field(default=None, max_length=160)
+
+initialize_database()
+
 app = FastAPI()
 
 frontend_origins = [
@@ -77,6 +99,22 @@ def create_session(session: SessionCreate):
             detail="Category does not exist."
         )
 
+@app.patch("/sessions/{session_id}/reflection")
+def update_reflection(session_id: int, reflection: SessionReflectionUpdate):
+    updated_session = update_session_reflection(
+        session_id=session_id,
+        focus_quality=reflection.focus_quality,
+        distraction=reflection.distraction,
+        distraction_note=reflection.distraction_note
+    )
+
+    if updated_session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found."
+        )
+    return updated_session
+
 #category part
 @app.get("/categories")
 def read_categories():
@@ -91,6 +129,14 @@ def add_category(category: CategoryCreate):
             status_code=status.HTTP_409_CONFLICT,
             detail="Category already exists."
         )
+
+@app.get("/categories/{category_id}/sessions")
+def read_sessions_by_category(category_id: int):
+    return get_sessions_by_category(category_id=category_id)
+
+@app.get("/sessions/weekly")
+def read_weekly_summary(start_date: date):
+    return get_weekly_summary(start_date=start_date)
 
 if __name__ == "__main__":
     uvicorn.run(

@@ -7,6 +7,12 @@ import type { DailySummary } from "../../lib/services/progress";
 type StudyActivityMapProps = {
   month: string;
   summaries: DailySummary[];
+  hasError: boolean;
+  isCurrentMonth: boolean;
+  isLoading: boolean;
+  onCurrentMonth: () => void;
+  onNextMonth: () => void;
+  onPreviousMonth: () => void;
 };
 
 const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -29,6 +35,12 @@ function formatDate(date: string) {
 export function StudyActivityMap({
   month,
   summaries,
+  hasError,
+  isCurrentMonth,
+  isLoading,
+  onCurrentMonth,
+  onNextMonth,
+  onPreviousMonth,
 }: StudyActivityMapProps) {
   const [year, monthNumber] = month.split("-").map(Number);
   const daysInMonth = new Date(year, monthNumber, 0).getDate();
@@ -55,11 +67,8 @@ export function StudyActivityMap({
   ];
 
   useEffect(() => {
-    const selectionBelongsToMonth = selectedDay?.date.startsWith(month);
-    if ((!selectedDay || !selectionBelongsToMonth) && summaries.length > 0) {
-      setSelectedDay(summaries.at(-1) ?? null);
-    }
-  }, [month, selectedDay, summaries]);
+    setSelectedDay(summaries.at(-1) ?? null);
+  }, [month, summaries]);
 
   function selectDay(day: number) {
     const date = `${month}-${String(day).padStart(2, "0")}`;
@@ -80,16 +89,43 @@ export function StudyActivityMap({
           <h2 id="activity-title">Sua atividade em {monthLabel}</h2>
         </div>
 
-        <div className="activity-legend" aria-label="Intensidade de estudo">
-          <span>Menos</span>
-          {[0, 1, 2, 3, 4].map((level) => (
-            <i className={`activity-swatch level-${level}`} key={level} />
-          ))}
-          <span>Mais</span>
+        <div className="activity-header-tools">
+          <nav className="activity-navigation" aria-label="Navegação do calendário">
+            <button
+              aria-label="Mostrar mês anterior"
+              onClick={onPreviousMonth}
+              type="button"
+            >
+              ‹
+            </button>
+            <button
+              disabled={isCurrentMonth}
+              onClick={onCurrentMonth}
+              type="button"
+            >
+              Mês atual
+            </button>
+            <button
+              aria-label="Mostrar próximo mês"
+              disabled={isCurrentMonth}
+              onClick={onNextMonth}
+              type="button"
+            >
+              ›
+            </button>
+          </nav>
+
+          <div className="activity-legend" aria-label="Intensidade de estudo">
+            <span>Menos</span>
+            {[0, 1, 2, 3, 4].map((level) => (
+              <i className={`activity-swatch level-${level}`} key={level} />
+            ))}
+            <span>Mais</span>
+          </div>
         </div>
       </div>
 
-      <div className="activity-content">
+      <div className="activity-content" aria-busy={isLoading}>
         <div className="activity-calendar-scroll">
           <div className="activity-calendar">
             <div className="activity-weekdays" aria-hidden="true">
@@ -129,6 +165,10 @@ export function StudyActivityMap({
               })}
             </div>
           </div>
+          {isLoading && <p className="activity-load-status">Carregando mês…</p>}
+          {hasError && (
+            <p className="activity-load-status">Não foi possível carregar este mês.</p>
+          )}
         </div>
 
         <aside className="activity-detail" aria-live="polite">
@@ -161,6 +201,11 @@ export function StudyActivityMap({
                         </span>
                         <small>
                           {session.category_name || "Sem categoria"} · {session.rest_time} min de descanso
+                        </small>
+                        <small>
+                          {session.focus_quality === null
+                            ? "Sem check-in"
+                            : `Foco ${session.focus_quality}/5${session.distraction ? ` · ${session.distraction}` : ""}`}
                         </small>
                       </div>
                     ))}

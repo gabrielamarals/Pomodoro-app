@@ -1,19 +1,18 @@
 # Study Tracker Pomodoro
 
 A Pomodoro application that combines focus sessions with study tracking, progress
-visualization, and, in future versions, short reflections about the quality of each
-session.
+visualization, and optional short check-ins about the quality of each session.
 
 ## Development responsibilities
 
 This is a collaborative learning project with clearly separated responsibilities:
 
-- **Gabriel Augusto Amaral Silva:** responsible for learning, designing, and
-  implementing the back-end, including Python, SQLite, SQL queries, the future API,
-  and its integration with the database.
-- **OpenAI Codex:** responsible for designing and implementing the front-end,
-  including the interface, user experience, responsiveness, visual components, and
-  future HTTP integration with the API.
+- **Gabriel Augusto Amaral Silva:** leads the back-end design and development,
+  including Python, SQLite, SQL queries, FastAPI, validation, and database
+  integration, with AI-assisted mentoring and implementation support.
+- **OpenAI Codex:** leads the front-end implementation, including interface,
+  user experience, responsiveness, visual components, and HTTP integration with
+  the API.
 
 The front-end does not access SQLite directly. Back-end changes remain Gabriel's
 responsibility unless he explicitly requests assistance with a specific change.
@@ -22,13 +21,12 @@ responsibility unless he explicitly requests assistance with a specific change.
 
 The project is under active development.
 
-The Python and SQLite data layer can already create and save sessions, produce daily
-and monthly summaries, retrieve sessions from a selected date, and list recent
-sessions. The web interface currently includes the timer, progress dashboard,
-study-activity map, and history screen.
-
-The front-end is temporarily powered by clearly identified mock data. The next major
-milestone is a Python API that will connect the interface to the real back-end data.
+The first local version is usable for daily study. The Python, SQLite, and FastAPI
+layers save completed focus sessions and provide daily, weekly, monthly, history,
+category, and selected-date data. The web interface consumes these API responses
+and includes a timer, automatic focus/rest transitions, progress dashboard,
+navigable activity map, category session details, history, quick focus check-ins,
+and themes.
 
 ## Product vision
 
@@ -54,11 +52,13 @@ punishing users or turning the end of a session into a long questionnaire.
 - initialize a local SQLite database;
 - save completed focus and rest sessions;
 - calculate the session count and focus time for a day;
+- calculate weekly activity and compare it with the previous week;
 - group monthly activity by date;
 - retrieve individual sessions from a selected date;
 - retrieve a limited number of recent sessions;
 - order history from newest to oldest;
-- run focus and rest sessions through the terminal prototype.
+- update a session with an optional focus check-in;
+- expose the data through FastAPI endpoints.
 
 ### Front-end
 
@@ -66,15 +66,23 @@ punishing users or turning the end of a session into a long questionnaire.
 - focus and rest modes;
 - configurable focus and rest durations;
 - pause, continue, and cancel controls;
+- automatic focus/rest transitions;
+- timer recovery after a page refresh;
+- optional completion sound and browser notification;
+- optional focus-quality and distraction check-in during rest;
+- category screen with sessions and check-in details;
+- immersive focus mode that hides secondary controls while studying;
 - progress dashboard;
-- weekly activity chart;
-- monthly study-activity map inspired by contribution calendars;
+- real weekly and monthly activity data;
+- navigable monthly study-activity map;
 - interactive daily summary;
 - session history grouped by date;
-- isolated service and mock-data layers prepared for the future API.
+- category selection and creation;
+- local theme selection.
 
-> The data displayed by the web interface is currently demonstrative and is not yet
-> loaded from SQLite.
+The current version is local-only and uses the Python API running on the same
+computer. Authentication and online synchronization are planned for a future
+version.
 
 ## Roadmap
 
@@ -88,13 +96,20 @@ punishing users or turning the end of a session into a long questionnaire.
 - [x] Progress dashboard
 - [x] Study-activity map
 - [x] Initial history interface
-- [ ] Python HTTP API
-- [ ] Front-end and API integration
-- [ ] Replace mock data with real responses
-- [ ] Complete monthly calendar
+- [x] Python HTTP API
+- [x] Front-end and API integration
+- [x] Replace core mock data with real responses
+- [x] Complete monthly calendar navigation
+- [x] Automatic focus/rest transitions
+- [x] Recover active timer after page refresh
+- [x] Quick post-session check-in
+- [x] Category session details
+- [x] Immersive focus mode
+- [ ] End-of-study-block reflection
+- [x] Local development launcher
 - [ ] Post-session reflection
-- [ ] Subjects and project categories
-- [ ] Light, dark, and custom visual themes
+- [x] Subjects and project categories
+- [x] Light, dark, and custom visual themes
 - [ ] Automated tests
 - [ ] Authentication and user profiles
 - [ ] Advanced reports and personalized insights
@@ -107,7 +122,7 @@ punishing users or turning the end of a session into a long questionnaire.
 - Python
 - SQLite
 - SQL
-- FastAPI planned for the HTTP API
+- FastAPI for the HTTP API
 
 ### Front-end
 

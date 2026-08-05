@@ -8,6 +8,9 @@ export type StudySession = {
   goal: string | null;
   category_id: number | null;
   category_name: string | null;
+  focus_quality: number | null;
+  distraction: string | null;
+  distraction_note: string | null;
 };
 
 export type SessionCreate = {
@@ -16,6 +19,12 @@ export type SessionCreate = {
   session_date: string;
   goal: string | null;
   category_id: number | null;
+};
+
+export type SessionReflectionUpdate = {
+  focus_quality: number;
+  distraction: string | null;
+  distraction_note: string | null;
 };
 
 export async function createSession(
@@ -31,6 +40,28 @@ export async function createSession(
 
   if (!response.ok) {
     throw new Error(`Create session request failed with status ${response.status}`);
+  }
+
+  return response.json() as Promise<StudySession>;
+}
+
+export async function updateSessionReflection(
+  sessionId: number,
+  reflection: SessionReflectionUpdate,
+): Promise<StudySession> {
+  const response = await fetch(
+    `${API_BASE_URL}/sessions/${sessionId}/reflection`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(reflection),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Session reflection request failed with status ${response.status}`);
   }
 
   return response.json() as Promise<StudySession>;
