@@ -4,6 +4,7 @@ import handler from "vinext/server/app-router-entry";
 
 interface Env {
   ASSETS: Fetcher;
+  API_ORIGIN?: string;
   DB: D1Database;
   IMAGES: {
     input(stream: ReadableStream): {
@@ -28,6 +29,16 @@ interface ExecutionContext {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
+      const apiOrigin = env.API_ORIGIN || import.meta.env.VITE_API_ORIGIN || "http://127.0.0.1:8000";
+      const targetUrl = new URL(url.pathname.replace(/^\/api/, "") || "/", apiOrigin);
+      targetUrl.search = url.search;
+      const headers = new Headers(request.headers);
+      headers.set("x-forwarded-host", url.host);
+      headers.set("x-forwarded-proto", url.protocol.replace(":", ""));
+      return fetch(new Request(targetUrl, { method: request.method, headers, body: request.body, redirect: "manual" }));
+    }
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];

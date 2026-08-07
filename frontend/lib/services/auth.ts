@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8000";
+import { apiFetch } from "../config/api";
 
 export type AuthUser = {
   id: number;
@@ -45,66 +45,61 @@ async function parseResponse(response: Response) {
 }
 
 export async function register(credentials: AuthCredentials): Promise<AuthUser> {
-  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+  const response = await apiFetch("/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify(credentials),
   });
   return parseResponse(response) as Promise<AuthUser>;
 }
 
 export async function login(credentials: AuthCredentials): Promise<AuthUser> {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  const response = await apiFetch("/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify(credentials),
   });
   return parseResponse(response) as Promise<AuthUser>;
 }
 
 export async function getCurrentUser(signal?: AbortSignal): Promise<AuthUser> {
-  const response = await fetch(`${API_BASE_URL}/auth/me`, {
-    credentials: "include",
+  const response = await apiFetch("/auth/me", {
     signal,
   });
   return parseResponse(response) as Promise<AuthUser>;
 }
 
 export async function getCurrentAccount(signal?: AbortSignal): Promise<Account> {
-  const response = await fetch(`${API_BASE_URL}/me`, { credentials: "include", signal });
+  const response = await apiFetch("/me", { signal });
   return parseResponse(response) as Promise<Account>;
 }
 
 export async function completeOnboarding(data: Record<string, unknown>): Promise<Account> {
-  const response = await fetch(`${API_BASE_URL}/me/onboarding/complete`, {
+  const response = await apiFetch("/me/onboarding/complete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
     body: JSON.stringify(data),
   });
   return parseResponse(response) as Promise<Account>;
 }
 
 export async function updateProfile(data: Record<string, unknown>): Promise<Profile> {
-  const response = await fetch(`${API_BASE_URL}/me/profile`, {
-    method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data),
+  const response = await apiFetch("/me/profile", {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
   });
   return parseResponse(response) as Promise<Profile>;
 }
 
 export async function updatePreferences(data: Partial<Preferences>): Promise<Preferences> {
-  const response = await fetch(`${API_BASE_URL}/me/preferences`, {
-    method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(data),
+  const response = await apiFetch("/me/preferences", {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
   });
   return parseResponse(response) as Promise<Preferences>;
 }
 
 export async function logout(): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+  const response = await apiFetch("/auth/logout", {
     method: "POST",
-    credentials: "include",
   });
   if (!response.ok) throw new Error("Não foi possível sair da conta.");
 }

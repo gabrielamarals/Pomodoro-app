@@ -1,10 +1,10 @@
-import sqlite3
 import os
 import secrets
+from contextlib import asynccontextmanager
 from urllib.parse import urlencode
 from datetime import date
 import httpx
-from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Literal
@@ -21,6 +21,7 @@ from app.auth import (
     create_or_link_google_user,
     create_user,
     get_user_by_session_token,
+    revoke_auth_session,
 )
 from app.database import (
     get_daily_summary,
@@ -43,6 +44,8 @@ from app.database import (
     update_preferences,
     ensure_user_settings,
 )
+from app.db import database_is_available
+from app.errors import CategoryAccessError, DuplicateCategoryError
 
 class UserCreate(BaseModel):
     email: str = Field(min_length=5, max_length=120)
@@ -104,13 +107,19 @@ class PreferencesUpdate(BaseModel):
     theme: Literal["natural", "ember", "ocean", "system"] | None = None
     locale: Literal["pt-BR", "en"] | None = None
 
-initialize_database()
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    initialize_database()
+    yield
 
-app = FastAPI()
 
+app = FastAPI(title="Foco API", version="0.2.0", lifespan=lifespan)
+
+default_frontend_origins = "http://localhost:3000,http://127.0.0.1:3000"
 frontend_origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
+    origin.strip().rstrip("/")
+    for origin in os.getenv("CORS_ORIGINS", default_frontend_origins).split(",")
+    if origin.strip()
 ]
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
@@ -120,6 +129,29 @@ GOOGLE_REDIRECT_URI = os.getenv(
     "http://localhost:8000/auth/google/callback",
 )
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax").lower()
+if COOKIE_SAMESITE not in {"lax", "strict", "none"}:
+    raise RuntimeError("COOKIE_SAMESITE must be lax, strict, or none.")
+
+
+def set_session_cookie(response: Response, session_token: str) -> None:
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        max_age=30 * 24 * 60 * 60,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+    )
+
+
+def frontend_login_error(reason: str) -> RedirectResponse:
+    return RedirectResponse(
+        f"{FRONTEND_URL.rstrip('/')}/login?oauth_error={reason}",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 app.add_middleware(
@@ -132,9 +164,9 @@ app.add_middleware(
 
 @app.get("/health")
 def health_check():
-    return {
-        "status": "ok"
-    }
+    if not database_is_available():
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable.")
+    return {"status": "ok", "database": "connected"}
 
 @app.get("/goals/current")
 def read_current_goal(request: Request):
@@ -147,7 +179,7 @@ def create_study_goal(goal: GoalCreate, request: Request):
     return create_goal(daily_goal_minutes=goal.daily_goal_minutes, user_id=user["id"])
 
 @app.get("/sessions/daily")
-def read_daily_summary(date: str, request: Request):
+def read_daily_summary(date: date, request: Request):
     user = require_authenticated_user(request)
     return get_daily_summary(date, user["id"])
 
@@ -157,17 +189,17 @@ def read_current_streak(request: Request):
     return {"current_streak": get_current_streak(user["id"])}
 
 @app.get("/sessions/monthly")
-def read_monthly_summary(month:str, request: Request):
+def read_monthly_summary(request: Request, month: str = Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")):
     user = require_authenticated_user(request)
     return get_monthly_summary(month_year=month, user_id=user["id"])
 
 @app.get("/sessions/recent")
-def read_recent_sessions(request: Request, limit: int = 20):
+def read_recent_sessions(request: Request, limit: int = Query(default=20, ge=1, le=100)):
     user = require_authenticated_user(request)
     return get_recent_sessions(limit=limit, user_id=user["id"])
 
 @app.get("/sessions/by-date")
-def read_session_by_date(date:str, request: Request):
+def read_session_by_date(date: date, request: Request):
     user = require_authenticated_user(request)
     return get_sessions_by_date(session_date=date, user_id=user["id"])
 
@@ -183,7 +215,7 @@ def create_session(session: SessionCreate, request: Request):
             category_id=session.category_id,
             user_id=user["id"]
         )
-    except sqlite3.IntegrityError:
+    except CategoryAccessError:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Category does not exist."
@@ -218,7 +250,7 @@ def add_category(category: CategoryCreate, request: Request):
     user = require_authenticated_user(request)
     try:
         return create_category(category_name=category.name, user_id=user["id"])
-    except sqlite3.IntegrityError:
+    except DuplicateCategoryError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Category already exists."
@@ -233,14 +265,6 @@ def read_sessions_by_category(category_id: int, request: Request):
 def read_weekly_summary(start_date: date, request: Request):
     user = require_authenticated_user(request)
     return get_weekly_summary(start_date=start_date, user_id=user["id"])
-
-if __name__ == "__main__":
-    uvicorn.run(
-        app,
-        host="127.0.0.1",
-        port=8000
-    )
-
 
 #User part
 
@@ -271,14 +295,7 @@ def login_user(credentials: UserLogin, response: Response):
         )
 
     session_token = create_auth_session(user["id"])
-    response.set_cookie(
-        key="session_token",
-        value=session_token,
-        max_age=30 * 24 * 60 * 60,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-    )
+    set_session_cookie(response, session_token)
     return user
 
 @app.get("/auth/me")
@@ -342,8 +359,11 @@ def edit_preferences(preferences: PreferencesUpdate, request: Request):
     return update_preferences(user["id"], preferences.model_dump(exclude_none=True))
 
 @app.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout_user(response: Response):
-    response.delete_cookie("session_token")
+def logout_user(request: Request, response: Response):
+    revoke_auth_session(request.cookies.get("session_token"))
+    response.delete_cookie(
+        "session_token", path="/", secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE,
+    )
 
 @app.get("/auth/google/login")
 def google_login():
@@ -363,16 +383,27 @@ def google_login():
         "prompt": "select_account",
     })
     response = RedirectResponse(authorization_url, status_code=status.HTTP_303_SEE_OTHER)
-    response.set_cookie("google_oauth_state", state, httponly=True, secure=False, samesite="lax", max_age=600)
+    response.set_cookie(
+        "google_oauth_state", state, httponly=True, secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE, max_age=600, path="/",
+    )
     return response
 
 @app.get("/auth/google/callback")
-def google_callback(request: Request, code: str | None = None, state: str | None = None):
+def google_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+):
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Google login is not configured yet.")
 
+    if error:
+        return frontend_login_error("cancelled")
+
     saved_state = request.cookies.get("google_oauth_state")
-    if not state or not saved_state or state != saved_state:
+    if not state or not saved_state or not secrets.compare_digest(state, saved_state):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OAuth state.")
     if not code:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Google authorization code is missing.")
@@ -406,9 +437,18 @@ def google_callback(request: Request, code: str | None = None, state: str | None
     if not email or not google_sub:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Google did not return a usable identity.")
 
-    user = create_or_link_google_user(email=email, google_sub=google_sub)
+    try:
+        user = create_or_link_google_user(email=email, google_sub=google_sub)
+    except ValueError:
+        return frontend_login_error("account_conflict")
     session_token = create_auth_session(user["id"])
     response = RedirectResponse(FRONTEND_URL, status_code=status.HTTP_303_SEE_OTHER)
-    response.set_cookie("session_token", session_token, max_age=30 * 24 * 60 * 60, httponly=True, secure=False, samesite="lax")
-    response.delete_cookie("google_oauth_state")
+    set_session_cookie(response, session_token)
+    response.delete_cookie(
+        "google_oauth_state", path="/", secure=COOKIE_SECURE, samesite=COOKIE_SAMESITE,
+    )
     return response
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="127.0.0.1", port=8000)

@@ -1,11 +1,11 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { login, register } from "../../lib/services/auth";
 import { useI18n } from "../../lib/i18n/I18nProvider";
-
-const API_BASE_URL = "http://localhost:8000";
+import { apiUrl } from "../../lib/config/api";
 
 type AuthMode = "login" | "register";
 
@@ -18,6 +18,12 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    const oauthError = new URLSearchParams(window.location.search).get("oauth_error");
+    if (oauthError === "cancelled") setError(t("oauthCancelled"));
+    if (oauthError === "account_conflict") setError(t("oauthAccountConflict"));
+  }, [t]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,7 +52,7 @@ export default function LoginPage() {
   return (
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="auth-title">
-        <a className="auth-brand" href="/">foco.</a>
+        <Link className="auth-brand" href="/">foco.</Link>
         <p className="eyebrow">{t("studyRoutine")}</p>
         <h1 id="auth-title">{mode === "login" ? t("welcomeBack") : t("createAccount")}</h1>
         <p className="auth-description">
@@ -64,7 +70,7 @@ export default function LoginPage() {
         </form>
 
         <div className="auth-divider"><span>{t("or")}</span></div>
-        <a className="google-auth-button" href={`${API_BASE_URL}/auth/google/login`}>
+        <a className="google-auth-button" href={apiUrl("/auth/google/login")}>
           <span className="google-mark" aria-hidden="true">G</span>
           {t("continueGoogle")}
         </a>

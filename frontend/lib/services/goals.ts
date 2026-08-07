@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8000";
+import { apiFetch } from "../config/api";
 
 export type StudyGoal = {
   id: number;
@@ -7,13 +7,13 @@ export type StudyGoal = {
 };
 
 export async function fetchCurrentGoal(signal?: AbortSignal): Promise<StudyGoal | null> {
-  const response = await fetch(`${API_BASE_URL}/goals/current`, { signal });
+  const response = await apiFetch("/goals/current", { signal });
   if (!response.ok) throw new Error(`Current goal request failed with status ${response.status}`);
   return response.json() as Promise<StudyGoal | null>;
 }
 
 export async function createStudyGoal(dailyGoalMinutes: number): Promise<StudyGoal> {
-  const response = await fetch(`${API_BASE_URL}/goals`, {
+  const response = await apiFetch("/goals", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ daily_goal_minutes: dailyGoalMinutes }),

@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8000";
+import { apiFetch } from "../config/api";
 
 export type StudySession = {
   id: number;
@@ -30,7 +30,7 @@ export type SessionReflectionUpdate = {
 export async function createSession(
   session: SessionCreate,
 ): Promise<StudySession> {
-  const response = await fetch(`${API_BASE_URL}/sessions`, {
+  const response = await apiFetch("/sessions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -49,8 +49,8 @@ export async function updateSessionReflection(
   sessionId: number,
   reflection: SessionReflectionUpdate,
 ): Promise<StudySession> {
-  const response = await fetch(
-    `${API_BASE_URL}/sessions/${sessionId}/reflection`,
+  const response = await apiFetch(
+    `/sessions/${sessionId}/reflection`,
     {
       method: "PATCH",
       headers: {
@@ -71,8 +71,8 @@ export async function fetchRecentSessions(
   limit = 20,
   signal?: AbortSignal,
 ): Promise<StudySession[]> {
-  const response = await fetch(
-    `${API_BASE_URL}/sessions/recent?limit=${encodeURIComponent(limit)}`,
+  const response = await apiFetch(
+    `/sessions/recent?limit=${encodeURIComponent(limit)}`,
     { signal },
   );
 
@@ -87,8 +87,8 @@ export async function fetchSessionsByDate(
   date: string,
   signal?: AbortSignal,
 ): Promise<StudySession[]> {
-  const response = await fetch(
-    `${API_BASE_URL}/sessions/by-date?date=${encodeURIComponent(date)}`,
+  const response = await apiFetch(
+    `/sessions/by-date?date=${encodeURIComponent(date)}`,
     { signal },
   );
 

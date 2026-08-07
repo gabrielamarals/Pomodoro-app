@@ -1,6 +1,5 @@
 import type { StudySession } from "./sessions";
-
-const API_BASE_URL = "http://localhost:8000";
+import { apiFetch } from "../config/api";
 
 export type Category = {
   id: number;
@@ -19,7 +18,7 @@ export class CategoryRequestError extends Error {
 export async function fetchCategories(
   signal?: AbortSignal,
 ): Promise<Category[]> {
-  const response = await fetch(`${API_BASE_URL}/categories`, { signal });
+  const response = await apiFetch("/categories", { signal });
 
   if (!response.ok) {
     throw new CategoryRequestError(response.status);
@@ -29,7 +28,7 @@ export async function fetchCategories(
 }
 
 export async function createCategory(name: string): Promise<Category> {
-  const response = await fetch(`${API_BASE_URL}/categories`, {
+  const response = await apiFetch("/categories", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -48,8 +47,8 @@ export async function fetchSessionsByCategory(
   categoryId: number,
   signal?: AbortSignal,
 ): Promise<StudySession[]> {
-  const response = await fetch(
-    `${API_BASE_URL}/categories/${categoryId}/sessions`,
+  const response = await apiFetch(
+    `/categories/${categoryId}/sessions`,
     { signal },
   );
 

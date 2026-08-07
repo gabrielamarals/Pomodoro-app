@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { completeOnboarding } from "../../lib/services/auth";
 import { useCurrentAccount } from "../../lib/hooks/useCurrentAccount";
@@ -36,7 +36,7 @@ export default function OnboardingPage() {
   const update = (key: string, value: string | number) =>
     setForm((current) => ({ ...current, [key]: value }));
 
-  const finish = async () => {
+  const finish = useCallback(async () => {
     setBusy(true);
     setError("");
     try {
@@ -47,9 +47,9 @@ export default function OnboardingPage() {
     } finally {
       setBusy(false);
     }
-  };
+  }, [form, t]);
 
-  const advance = () => {
+  const advance = useCallback(() => {
     if (step === 3) {
       const focus = Number(form.focus_minutes);
       const rest = Number(form.rest_minutes);
@@ -64,15 +64,21 @@ export default function OnboardingPage() {
       setError("");
       setStep((current) => current + 1);
     }
-  };
+  }, [finish, form.focus_minutes, form.rest_minutes, step, t]);
 
   useEffect(() => {
     function handleGlobalKeyDown(event: KeyboardEvent) {
       if (event.isComposing || busy || step === 4) return;
 
       const target = event.target as HTMLElement | null;
-      const isEditable = target?.matches("input, select, textarea, [contenteditable='true']");
-      if (isEditable) return;
+      const isTextArea = target?.matches("textarea, [contenteditable='true']");
+      const isSelect = target?.matches("select");
+      const isSingleLineInput = target?.matches("input:not([type='checkbox']):not([type='radio'])");
+
+      // Arrow keys must keep their native cursor/select behavior inside controls.
+      // Enter submits a single-line onboarding field, while textareas/selects keep
+      // their normal keyboard interaction.
+      if (isTextArea || isSelect || (isSingleLineInput && event.key !== "Enter")) return;
 
       if (event.key === "ArrowLeft") {
         if (step > 0) {

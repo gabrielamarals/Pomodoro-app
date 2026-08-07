@@ -49,7 +49,7 @@ type PersistedTimerState = {
   immersiveMode: boolean;
 };
 
-const TIMER_STORAGE_KEY = "pomodoro.timer.v1";
+const TIMER_STORAGE_PREFIX = "pomodoro.timer.v2";
 
 function formatTime(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
@@ -109,7 +109,7 @@ function DurationControl({
 }
 
 export default function Home() {
-  const { account } = useCurrentAccount();
+  const { account, isLoading: accountLoading } = useCurrentAccount();
   const { locale, t } = useI18n();
   const distractionOptions: Array<{ value: DistractionOption; label: string }> = [
     { value: "noise", label: t("distractionNoise") }, { value: "tiredness", label: t("distractionTiredness") },
@@ -152,6 +152,10 @@ export default function Home() {
   const [immersiveMode, setImmersiveMode] = useState(false);
   const saveStartedRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const timerStorageKey = useMemo(
+    () => `${TIMER_STORAGE_PREFIX}:${account?.user.id ?? "guest"}`,
+    [account?.user.id],
+  );
 
   const totalSeconds = (mode === "focus" ? focusMinutes : restMinutes) * 60;
   const progress = Math.max(0, Math.min(100, (remainingSeconds / totalSeconds) * 100));
@@ -215,8 +219,10 @@ export default function Home() {
   }
 
   useEffect(() => {
+    if (accountLoading) return;
+    setIsHydrated(false);
     try {
-      const savedState = window.localStorage.getItem(TIMER_STORAGE_KEY);
+      const savedState = window.localStorage.getItem(timerStorageKey);
 
       if (savedState) {
         const saved = JSON.parse(savedState) as PersistedTimerState;
@@ -243,22 +249,30 @@ export default function Home() {
         setStatus(restoredStatus);
         setRemainingSeconds(restoredRemaining);
         setEndAt(restoredStatus === "running" ? saved.endAt : null);
+      } else {
+        const defaultFocus = account?.preferences.focus_minutes ?? 25;
+        const defaultRest = account?.preferences.rest_minutes ?? 5;
+        setFocusMinutes(defaultFocus);
+        setRestMinutes(defaultRest);
+        setSessionGoal("");
+        setSelectedCategoryId(null);
+        setActiveSessionId(null);
+        setFocusQuality(null);
+        setDistraction(null);
+        setDistractionNote("");
+        setReflectionSkipped(false);
+        setImmersiveMode(false);
+        setMode("focus");
+        setStatus("ready");
+        setRemainingSeconds(defaultFocus * 60);
+        setEndAt(null);
       }
     } catch {
-      window.localStorage.removeItem(TIMER_STORAGE_KEY);
+      window.localStorage.removeItem(timerStorageKey);
     } finally {
       setIsHydrated(true);
     }
-  }, []);
-
-  useEffect(() => {
-    if (!account || !isHydrated) return;
-    if (!window.localStorage.getItem(TIMER_STORAGE_KEY)) {
-      setFocusMinutes(account.preferences.focus_minutes);
-      setRestMinutes(account.preferences.rest_minutes);
-      setRemainingSeconds(account.preferences.focus_minutes * 60);
-    }
-  }, [account, isHydrated]);
+  }, [account, accountLoading, timerStorageKey]);
 
   useEffect(() => {
     if (!isHydrated || status !== "running") return;
@@ -280,6 +294,8 @@ export default function Home() {
     if (!isHydrated || status !== "running" || remainingSeconds !== 0) return;
 
     if (mode === "focus") {
+      // The declaration is hoisted; completion is guarded by saveStartedRef.
+      // eslint-disable-next-line react-hooks/immutability
       void saveCompletedFocus();
     } else {
       saveStartedRef.current = false;
@@ -322,7 +338,7 @@ export default function Home() {
       immersiveMode,
     };
 
-    window.localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(persistedState));
+    window.localStorage.setItem(timerStorageKey, JSON.stringify(persistedState));
   }, [
     activeSessionId,
     distraction,
@@ -338,6 +354,7 @@ export default function Home() {
     selectedCategoryId,
     sessionGoal,
     status,
+    timerStorageKey,
   ]);
 
   const statusLabel = useMemo(() => {

@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8000";
+import { apiFetch } from "../config/api";
 
 export type DailySummary = {
   date: string;
@@ -10,8 +10,8 @@ export async function fetchDailySummary(
   date: string,
   signal?: AbortSignal,
 ): Promise<DailySummary> {
-  const response = await fetch(
-    `${API_BASE_URL}/sessions/daily?date=${encodeURIComponent(date)}`,
+  const response = await apiFetch(
+    `/sessions/daily?date=${encodeURIComponent(date)}`,
     { signal },
   );
 
@@ -23,7 +23,7 @@ export async function fetchDailySummary(
 }
 
 export async function fetchCurrentStreak(signal?: AbortSignal): Promise<number> {
-  const response = await fetch(`${API_BASE_URL}/sessions/streak`, { signal });
+  const response = await apiFetch("/sessions/streak", { signal });
   if (!response.ok) throw new Error(`Streak request failed with status ${response.status}`);
   const data = (await response.json()) as { current_streak: number };
   return data.current_streak;
@@ -33,8 +33,8 @@ export async function fetchMonthlySummary(
   month: string,
   signal?: AbortSignal,
 ): Promise<DailySummary[]> {
-  const response = await fetch(
-    `${API_BASE_URL}/sessions/monthly?month=${encodeURIComponent(month)}`,
+  const response = await apiFetch(
+    `/sessions/monthly?month=${encodeURIComponent(month)}`,
     { signal },
   );
 
@@ -49,8 +49,8 @@ export async function fetchWeeklySummary(
   startDate: string,
   signal?: AbortSignal,
 ): Promise<DailySummary[]> {
-  const response = await fetch(
-    `${API_BASE_URL}/sessions/weekly?start_date=${encodeURIComponent(startDate)}`,
+  const response = await apiFetch(
+    `/sessions/weekly?start_date=${encodeURIComponent(startDate)}`,
     { signal },
   );
 
