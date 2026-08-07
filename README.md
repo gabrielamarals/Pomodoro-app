@@ -1,261 +1,210 @@
-# Study Tracker Pomodoro
+# Foco — Pomodoro e acompanhamento de estudos
 
-A Pomodoro application that combines focus sessions with study tracking, progress
-visualization, and optional short check-ins about the quality of each session.
+Foco é um Pomodoro bilíngue que registra sessões, metas, categorias e pequenas
+reflexões sobre a qualidade do estudo. A proposta é mostrar não apenas quanto
+tempo a pessoa estudou, mas ajudá-la a perceber como ela estuda ao longo do
+tempo.
 
-## Development responsibilities
+## Autoria e colaboração
 
-This is a collaborative learning project with clearly separated responsibilities:
+**Gabriel Augusto Amaral Silva** criou o produto e desenvolveu o back-end como
+projeto de aprendizagem em Python, SQL, bancos de dados e APIs. A interface foi
+desenvolvida em colaboração com o **OpenAI Codex**. Para preparar o beta público,
+o Codex também auxiliou na portabilidade para PostgreSQL, segurança,
+infraestrutura, testes e deploy, com as decisões acompanhadas por Gabriel.
 
-- **Gabriel Augusto Amaral Silva:** leads the back-end design and development,
-  including Python, SQLite, SQL queries, FastAPI, validation, and database
-  integration, with AI-assisted mentoring and implementation support.
-- **OpenAI Codex:** leads the front-end implementation, including interface,
-  user experience, responsiveness, visual components, and HTTP integration with
-  the API.
+## Funcionalidades
 
-The front-end does not access SQLite directly. Back-end changes remain Gabriel's
-responsibility unless he explicitly requests assistance with a specific change.
+- temporizador com foco, descanso, pausa, retomada e modo imersivo;
+- recuperação do timer após recarregar a página;
+- registro de sessões por usuário;
+- check-in opcional de qualidade do foco e distração;
+- categorias, objetivos e histórico detalhado;
+- resumos diário, semanal e mensal;
+- meta diária, sequência de estudos e mapa de constância;
+- conta por e-mail/senha e login com Google;
+- onboarding e preferências individuais;
+- temas Natural, Ember e Ocean;
+- interface em português e inglês;
+- layout responsivo para desktop e navegador móvel.
 
-## Project status
+## Arquitetura
 
-The local v0.1 is complete and usable for daily study. v0.2 now adds persistent
-profiles, first-login onboarding, server-backed Pomodoro preferences, and the
-foundation for Portuguese/English UI.
+```text
+Navegador
+  → Front-end React/Vinext (Cloudflare Worker)
+  → proxy de mesma origem /api
+  → API FastAPI (Render)
+  → PostgreSQL (produção)
 
-The Python, SQLite, and FastAPI layers save completed focus sessions and provide
-daily, weekly, monthly, history, category, selected-date, goal, and streak data.
-The web interface consumes these API responses and includes a timer, automatic
-focus/rest transitions, progress dashboard, configurable goals, navigable activity
-map, category session details, history, quick focus check-ins, and themes.
+Desenvolvimento local
+  → mesma API FastAPI
+  → SQLite local
+```
 
-## Product vision
+O front-end nunca acessa o banco diretamente. A seleção do banco é centralizada
+em `app/db.py`: sem `DATABASE_URL`, o ambiente local usa SQLite; com uma URL
+PostgreSQL, a mesma camada de persistência usa PostgreSQL via SQLAlchemy.
 
-Most Pomodoro applications show how long a person studied. This project also aims to
-help users understand **how well** their study sessions went.
+O proxy `/api` mantém os cookies de autenticação como cookies de primeira parte
+do site. Isso evita depender de cookies de terceiros entre domínios diferentes,
+especialmente em navegadores móveis.
 
-Alongside time and session statistics, future versions may include a quick,
-optional post-session reflection:
-
-- focus quality;
-- whether the intended objective was completed;
-- study subject or project;
-- main distraction;
-- a short note.
-
-These records may later support respectful insights about study patterns without
-punishing users or turning the end of a session into a long questionnaire.
-
-## Current features
-
-### Back-end
-
-- initialize a local SQLite database;
-- save completed focus and rest sessions;
-- calculate the session count and focus time for a day;
-- calculate weekly activity and compare it with the previous week;
-- group monthly activity by date;
-- retrieve individual sessions from a selected date;
-- retrieve a limited number of recent sessions;
-- order history from newest to oldest;
-- update a session with an optional focus check-in;
-- save and retrieve the current daily study goal;
-- calculate the current consecutive study-day streak;
-- expose the data through FastAPI endpoints.
-
-### Front-end
-
-- responsive Pomodoro timer interface;
-- focus and rest modes;
-- configurable focus and rest durations;
-- pause, continue, and cancel controls;
-- automatic focus/rest transitions;
-- timer recovery after a page refresh;
-- optional completion sound and browser notification;
-- optional focus-quality and distraction check-in during rest;
-- category screen with sessions and check-in details;
-- immersive focus mode that hides secondary controls while studying;
-- progress dashboard;
-- real weekly and monthly activity data;
-- navigable monthly study-activity map;
-- interactive daily summary;
-- session history grouped by date;
-- category selection and creation;
-- local theme selection.
-- first-login onboarding connected to the authenticated user;
-- persistent profile and Pomodoro preferences;
-- centralized i18n dictionary foundation for `pt-BR` and `en`.
-- language selection persisted in the account preferences and local browser;
-- sound and browser-notification preferences connected to timer transitions.
-
-The current version is local-only and uses the Python API running on the same
-computer. Authentication and online synchronization are planned for v0.2.
-
-## Roadmap
-
-- [x] SQLite database initialization
-- [x] Completed-session storage
-- [x] Daily summary query
-- [x] Monthly summary grouped by day
-- [x] Sessions-by-date query
-- [x] Recent-session query with a configurable limit
-- [x] Web timer interface
-- [x] Progress dashboard
-- [x] Study-activity map
-- [x] Initial history interface
-- [x] Python HTTP API
-- [x] Front-end and API integration
-- [x] Replace core mock data with real responses
-- [x] Complete monthly calendar navigation
-- [x] Automatic focus/rest transitions
-- [x] Recover active timer after page refresh
-- [x] Quick post-session check-in
-- [x] Category session details
-- [x] Immersive focus mode
-- [x] Configurable daily and weekly study goals
-- [x] Current consecutive-study streak
-- [x] Browser tab timer title
-- [x] Local account registration and persistent cookie sessions
-- [x] Google OAuth flow prepared (requires local Google Cloud credentials)
-- [ ] End-of-study-block reflection
-- [x] Local development launcher
-- [ ] Post-session reflection
-- [x] Subjects and project categories
-- [x] Light, dark, and custom visual themes
-- [ ] Automated tests
-- [x] Authentication and user profiles
-- [x] First-login onboarding and persistent Pomodoro preferences
-- [x] i18n foundation for Portuguese and English
-- [x] User-scoped new sessions, categories, and goals (legacy rows preserved as unassigned)
-- [ ] Advanced reports and personalized insights
-- [ ] Optional AI-assisted weekly insights
-
-## Technologies
+## Tecnologias
 
 ### Back-end
 
-- Python
-- SQLite
-- SQL
-- FastAPI for the HTTP API
-- Google OAuth 2.0 / OpenID Connect for optional sign-in
+- Python 3.10+
+- FastAPI e Uvicorn
+- SQLAlchemy 2
+- Alembic
+- SQLite no desenvolvimento local
+- PostgreSQL em produção
+- Argon2 para hash de senhas
+- Google OAuth 2.0 / OpenID Connect
 
 ### Front-end
 
 - TypeScript
-- React
-- Vinext
-- CSS
+- React 19
+- Vinext / Vite
+- Cloudflare Workers (Sites)
+- CSS responsivo e i18n centralizado
 
-## Project structure
+## Estrutura principal
 
 ```text
-Pomodoro-app/
-├── app/
-│   ├── main.py
-│   ├── session.py
-│   ├── timer.py
-│   ├── database.py
-│   └── pomodoro.db
-├── frontend/
-│   ├── app/
-│   ├── lib/
-│   │   ├── mocks/
-│   │   └── services/
-│   └── package.json
-├── docs/
-├── README.md
-└── requirements.txt        # added when the API dependencies are installed
+app/
+  api.py          # rotas HTTP, autenticação e configuração web
+  auth.py         # usuários, senhas e sessões autenticadas
+  database.py     # operações de domínio e consultas
+  db.py           # engine e seleção SQLite/PostgreSQL
+  schema.py       # esquema SQLAlchemy
+frontend/
+  app/            # páginas e componentes
+  lib/config/     # configuração central da API
+  lib/services/   # contratos HTTP
+  lib/i18n/       # traduções pt-BR/en
+  worker/         # aplicação e proxy /api
+migrations/       # migrations Alembic
+tests/            # testes automatizados da API
+render.yaml       # infraestrutura do back-end e PostgreSQL
 ```
 
-### Back-end file responsibilities
+## Executar localmente
 
-- `app/main.py`: initializes the database and starts the terminal application.
-- `app/session.py`: controls the current terminal session flow.
-- `app/timer.py`: contains the terminal timer logic.
-- `app/database.py`: owns database initialization, persistence, and queries.
+### Requisitos
 
-### Front-end organization
+- Python 3.10 ou superior;
+- Node.js 22.13 ou superior;
+- pnpm.
 
-- `frontend/app`: routes, reusable visual components, and global styles.
-- `frontend/lib/mocks`: temporary data used before the API is available.
-- `frontend/lib/services`: the boundary that will later make HTTP requests.
+### Back-end
 
-## Current database
+Na raiz do projeto:
 
-The SQLite database contains a `sessions` table:
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m uvicorn app.api:app --reload
+```
 
-| Field | Type | Purpose |
-|---|---|---|
-| `id` | INTEGER | Unique session identifier |
-| `work_time` | INTEGER | Focus duration in minutes |
-| `rest_time` | INTEGER | Rest duration in minutes |
-| `session_date` | TEXT | Session date in `YYYY-MM-DD` format |
+Sem `DATABASE_URL`, o SQLite é criado em `app/pomodoro.db`. O arquivo é local e
+não deve ser versionado.
 
-The database structure will evolve only when the back-end requirements make those
-changes necessary.
+### Front-end
 
-## Running locally
+Em outro terminal:
 
-### Requirements
+```powershell
+cd frontend
+pnpm install
+pnpm run dev
+```
 
-- Python 3.10 or newer
-- Node.js 22.13 or newer
-- pnpm
+Abra `http://localhost:3000`. Em desenvolvimento, o Worker encaminha `/api` para
+`http://127.0.0.1:8000`.
 
-SQLite support is included with Python.
+No Windows, `run-local.bat` continua disponível para iniciar os dois processos.
 
-### Clone the repository
+## Variáveis de ambiente
+
+Copie `.env.example` para `.env` apenas no ambiente local. Nunca envie o `.env`
+ao Git.
+
+### API
+
+| Variável | Uso |
+|---|---|
+| `DATABASE_URL` | URL PostgreSQL em produção; vazia usa SQLite local |
+| `FRONTEND_URL` | URL pública do front-end |
+| `CORS_ORIGINS` | origens permitidas, separadas por vírgula |
+| `COOKIE_SECURE` | `true` em HTTPS de produção |
+| `COOKIE_SAMESITE` | política SameSite do cookie |
+| `GOOGLE_CLIENT_ID` | identificador OAuth do Google |
+| `GOOGLE_CLIENT_SECRET` | segredo OAuth; somente no back-end |
+| `GOOGLE_REDIRECT_URI` | callback autorizado no Google |
+
+### Front-end
+
+| Variável | Uso |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | caminho usado pelo navegador; padrão `/api` |
+| `API_ORIGIN` | origem privada/pública do FastAPI usada pelo Worker |
+| `VITE_API_ORIGIN` | origem do FastAPI durante desenvolvimento/build local |
+
+Os arquivos `.env.example` contêm somente nomes e exemplos não sensíveis.
+
+## Banco e migrations
+
+O SQLite preserva a história e continua útil localmente. A produção usa um
+PostgreSQL vazio e aplica a migration inicial com:
 
 ```bash
-git clone https://github.com/gabrielamarals/Pomodoro-app.git
-cd Pomodoro-app
+alembic upgrade head
 ```
 
-### Run the terminal back-end prototype
+O `render.yaml` executa a migration antes de iniciar o Uvicorn. O banco local não
+é copiado para produção, portanto dados de desenvolvimento não são publicados.
 
-From the project root:
+## Testes e build
 
-```bash
-python app/main.py
+```powershell
+python -m unittest discover -s tests -v
+cd frontend
+pnpm run build
 ```
 
-Depending on the operating system, the command may be:
+Os testes automatizados cobrem saúde da API, autenticação, onboarding,
+preferências e isolamento entre usuários. O fluxo completo também deve ser
+validado no navegador após cada deploy.
 
-```bash
-python3 app/main.py
-```
+## Deploy
 
-### Run the local API and front-end
+- **API e PostgreSQL:** Render, usando `render.yaml`.
+- **Front-end:** Sites/Cloudflare Worker, pois o projeto Vinext já possui o
+  adaptador e o Worker necessários.
+- **Google OAuth:** o callback de produção deve apontar para
+  `https://URL-DO-FRONTEND/api/auth/google/callback`.
 
-Use the project launcher from the repository root:
+As URLs finais e os valores secretos são configurados nos painéis dos serviços,
+nunca no repositório.
 
-```bash
-run-local.bat
-```
+## Segurança e multiusuário
 
-Open `http://localhost:3000` in the browser.
+- senhas são armazenadas somente como hashes Argon2;
+- tokens de sessão aleatórios são armazenados como hashes;
+- cookies de produção usam `HttpOnly`, `Secure` e `SameSite`;
+- logout revoga a sessão no banco;
+- sessões, categorias, metas, perfis e preferências são filtrados pelo usuário
+  autenticado;
+- o estado local do temporizador também é separado por usuário;
+- segredos e bancos locais são ignorados pelo Git.
 
-The API runs at `http://127.0.0.1:8000` and the front-end communicates with it
-through HTTP. The front-end does not access SQLite directly.
+## Próximos passos após o beta
 
-## Learning goals
-
-The project is also a practical learning environment for:
-
-- Python and modular back-end organization;
-- relational databases and SQL;
-- data persistence and aggregation;
-- HTTP APIs and JSON contracts;
-- testing and debugging;
-- Git and GitHub;
-- front-end/back-end integration;
-- data analysis and future machine-learning applications;
-- technical decision-making and project documentation.
-
-## Author
-
-Product idea and back-end development by **Gabriel Augusto Amaral Silva**.
-
-Front-end developed collaboratively with **OpenAI Codex**, following the project's
-explicit separation of responsibilities.
+- reunir feedback de uso real;
+- melhorar relatórios de qualidade das sessões;
+- adicionar reflexão opcional ao fim de um bloco de estudo;
+- estudar insights personalizados somente após haver dados suficientes.
