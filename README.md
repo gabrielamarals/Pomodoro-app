@@ -68,7 +68,7 @@ especialmente em navegadores móveis.
 - TypeScript
 - React 19
 - Vinext / Vite
-- Cloudflare Workers (Sites)
+- Cloudflare Workers
 - CSS responsivo e i18n centralizado
 
 ## Estrutura principal
@@ -183,10 +183,15 @@ validado no navegador após cada deploy.
 ## Deploy
 
 - **API e PostgreSQL:** Render, usando `render.yaml`.
-- **Front-end:** Sites/Cloudflare Worker, pois o projeto Vinext já possui o
-  adaptador e o Worker necessários.
+- **Front-end:** Cloudflare Worker publicado diretamente com Wrangler.
 - **Google OAuth:** o callback de produção deve apontar para
   `https://URL-DO-FRONTEND/api/auth/google/callback`.
+
+### Beta público
+
+- **Aplicação:** <https://foco-pomodoro.gabrielamarals.workers.dev>
+- **API:** <https://foco-api-thc3.onrender.com>
+- **Saúde da API:** <https://foco-api-thc3.onrender.com/health>
 
 As URLs finais e os valores secretos são configurados nos painéis dos serviços,
 nunca no repositório.

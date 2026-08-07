@@ -1,11 +1,10 @@
-/** Cloudflare Worker entry point for the vinext-starter template. */
+/** Cloudflare Worker entry point for the Foco web application. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 
 interface Env {
   ASSETS: Fetcher;
   API_ORIGIN?: string;
-  DB: D1Database;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -31,7 +30,17 @@ const worker = {
     const url = new URL(request.url);
 
     if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
-      const apiOrigin = env.API_ORIGIN || import.meta.env.VITE_API_ORIGIN || "http://127.0.0.1:8000";
+      const isLocalRequest = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+      const apiOrigin = env.API_ORIGIN || import.meta.env.VITE_API_ORIGIN ||
+        (isLocalRequest ? "http://127.0.0.1:8000" : null);
+
+      if (!apiOrigin) {
+        return Response.json(
+          { detail: "API origin is not configured." },
+          { status: 503 },
+        );
+      }
+
       const targetUrl = new URL(url.pathname.replace(/^\/api/, "") || "/", apiOrigin);
       targetUrl.search = url.search;
       const headers = new Headers(request.headers);

@@ -1,5 +1,5 @@
 {
-  "name": "site-creator-vinext-starter",
+  "name": "foco-pomodoro",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -8,6 +8,8 @@
   "scripts": {
     "dev": "vinext dev",
     "build": "vinext build",
+    "preview": "pnpm run build && vite preview",
+    "deploy": "pnpm run build && wrangler deploy",
     "start": "vinext start",
     "test": "pnpm run build",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"

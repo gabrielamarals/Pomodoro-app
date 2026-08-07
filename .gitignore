@@ -7,3 +7,5 @@ __pycache__/
 frontend/node_modules/
 frontend/.next/
 frontend/dist/
+frontend/.wrangler/
+frontend/.dev.vars*
