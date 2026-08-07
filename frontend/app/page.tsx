@@ -7,7 +7,6 @@ import { formatMinutes } from "../lib/formatters/time";
 import { useDailySummary } from "../lib/hooks/useDailySummary";
 import {
   createSession,
-  fetchSessionByClientId,
   SessionRequestError,
   updateSessionReflection,
 } from "../lib/services/sessions";
@@ -63,33 +62,6 @@ function createClientSessionId() {
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
   return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
-}
-
-async function createSessionReliably(
-  session: Parameters<typeof createSession>[0],
-) {
-  try {
-    return await createSession(session);
-  } catch (error) {
-    const isTransientFailure =
-      !(error instanceof SessionRequestError) || error.status >= 500;
-    if (!isTransientFailure) throw error;
-
-    await new Promise((resolve) => window.setTimeout(resolve, 500));
-    try {
-      return await createSession(session);
-    } catch (retryError) {
-      try {
-        const confirmedSession = await fetchSessionByClientId(
-          session.client_session_id,
-        );
-        if (confirmedSession) return confirmedSession;
-      } catch {
-        // Preserve the original retry failure if confirmation is unavailable.
-      }
-      throw retryError;
-    }
-  }
 }
 
 function formatTime(totalSeconds: number) {
@@ -192,6 +164,7 @@ export default function Home() {
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const [saveErrorStatus, setSaveErrorStatus] = useState<number | null>(null);
+  const [completionDiagnostic, setCompletionDiagnostic] = useState<string | null>(null);
   const [savedWithoutCategory, setSavedWithoutCategory] = useState(false);
   const [immersiveMode, setImmersiveMode] = useState(false);
   const [clientSessionId, setClientSessionId] = useState<string | null>(null);
@@ -512,7 +485,10 @@ export default function Home() {
     setEndAt(null);
     setStatus("saving");
     setSaveErrorStatus(null);
+    setCompletionDiagnostic(null);
     setSavedWithoutCategory(false);
+
+    let completionStage = "preparing-request";
 
     try {
       const now = new Date();
@@ -532,8 +508,9 @@ export default function Home() {
       if (!clientSessionId) setClientSessionId(sessionData.client_session_id);
 
       let createdSession;
+      completionStage = "saving-session";
       try {
-        createdSession = await createSessionReliably(sessionData);
+        createdSession = await createSession(sessionData);
       } catch (error) {
         const categoryIsInvalid =
           error instanceof SessionRequestError &&
@@ -543,11 +520,12 @@ export default function Home() {
 
         if (!categoryIsInvalid) throw error;
 
-        createdSession = await createSessionReliably({ ...sessionData, category_id: null });
+        createdSession = await createSession({ ...sessionData, category_id: null });
         setSelectedCategoryId(null);
         setSavedWithoutCategory(true);
       }
 
+      completionStage = "session-saved";
       addCompletedSession(focusMinutes);
       setActiveSessionId(createdSession.id);
       setFocusQuality(null);
@@ -556,13 +534,20 @@ export default function Home() {
       setReflectionSkipped(false);
       setReflectionStatus("idle");
       setClientSessionId(null);
+      completionStage = "showing-notification";
       announceTimerChange(t("focusFinishedTitle"), t("autoRestStarted"));
+      completionStage = "starting-rest";
       setImmersiveMode(false);
       setMode("rest");
       setRemainingSeconds(restMinutes * 60);
       setEndAt(Date.now() + restMinutes * 60_000);
       setStatus("running");
     } catch (error) {
+      const errorName = error instanceof Error ? error.name : "UnknownError";
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const diagnostic = `${completionStage} | ${errorName}: ${errorMessage}`;
+      console.error("[timer-completion-diagnostic]", diagnostic, error);
+      setCompletionDiagnostic(diagnostic);
       saveStartedRef.current = false;
       setSaveErrorStatus(
         error instanceof SessionRequestError ? error.status : 0,
@@ -583,6 +568,7 @@ export default function Home() {
     setDistractionNote("");
     setReflectionSkipped(false);
     setReflectionStatus("idle");
+    setCompletionDiagnostic(null);
     setClientSessionId(null);
     setImmersiveMode(false);
   }
@@ -745,13 +731,20 @@ export default function Home() {
               )}
             </div>
             {status === "save-error" && (
-              <p className="save-feedback" role="alert">
-                {saveErrorStatus === 401
-                  ? t("sessionSaveAuthError")
-                  : saveErrorStatus === 422
-                    ? t("sessionSaveCategoryError")
-                    : t("sessionSaveError")}
-              </p>
+              <>
+                <p className="save-feedback" role="alert">
+                  {saveErrorStatus === 401
+                    ? t("sessionSaveAuthError")
+                    : saveErrorStatus === 422
+                      ? t("sessionSaveCategoryError")
+                      : t("sessionSaveError")}
+                </p>
+                {completionDiagnostic && (
+                  <p className="save-feedback" data-testid="completion-diagnostic">
+                    Diagnóstico temporário: <code>{completionDiagnostic}</code>
+                  </p>
+                )}
+              </>
             )}
             {savedWithoutCategory && (
               <p className="save-notice" role="status">
