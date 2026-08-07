@@ -164,7 +164,6 @@ export default function Home() {
     "idle" | "saving" | "saved" | "error"
   >("idle");
   const [saveErrorStatus, setSaveErrorStatus] = useState<number | null>(null);
-  const [completionDiagnostic, setCompletionDiagnostic] = useState<string | null>(null);
   const [savedWithoutCategory, setSavedWithoutCategory] = useState(false);
   const [immersiveMode, setImmersiveMode] = useState(false);
   const [clientSessionId, setClientSessionId] = useState<string | null>(null);
@@ -196,43 +195,81 @@ export default function Home() {
   );
 
   function prepareCompletionSound() {
-    const AudioContextConstructor = getAudioContextConstructor();
-    if (!AudioContextConstructor) return;
+    try {
+      const AudioContextConstructor = getAudioContextConstructor();
+      if (!AudioContextConstructor) return;
 
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioContextConstructor();
+      if (!audioContextRef.current) {
+        audioContextRef.current = new AudioContextConstructor();
+      }
+
+      void audioContextRef.current.resume().catch(() => undefined);
+    } catch {
+      // Sound is optional and must never interrupt the timer.
     }
+  }
 
-    void audioContextRef.current.resume();
+  async function showCompletionNotification(title: string, body: string) {
+    if (
+      account?.preferences.notifications_enabled === false ||
+      !("Notification" in window) ||
+      Notification.permission !== "granted"
+    ) return;
+
+    try {
+      if ("serviceWorker" in navigator) {
+        const registration = await navigator.serviceWorker.register(
+          "/notification-sw.js",
+          { scope: "/" },
+        );
+        await registration.showNotification(title, { body, tag: "foco-timer" });
+        return;
+      }
+
+      new Notification(title, { body });
+    } catch {
+      // Notification support varies by browser and is never critical to saving.
+    }
   }
 
   function announceTimerChange(title: string, body: string) {
-    if (account?.preferences.sound_enabled !== false) prepareCompletionSound();
-
-    const audioContext = audioContextRef.current;
-    if (audioContext && account?.preferences.sound_enabled !== false) {
-      const oscillator = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-      oscillator.frequency.value = 660;
-      oscillator.type = "sine";
-      gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.16, audioContext.currentTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.5);
-      oscillator.connect(gain);
-      gain.connect(audioContext.destination);
-      oscillator.start();
-      oscillator.stop(audioContext.currentTime + 0.52);
+    if (account?.preferences.sound_enabled !== false) {
+      try {
+        prepareCompletionSound();
+        const audioContext = audioContextRef.current;
+        if (audioContext) {
+          const oscillator = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          oscillator.frequency.value = 660;
+          oscillator.type = "sine";
+          gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.16, audioContext.currentTime + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.5);
+          oscillator.connect(gain);
+          gain.connect(audioContext.destination);
+          oscillator.start();
+          oscillator.stop(audioContext.currentTime + 0.52);
+        }
+      } catch {
+        // Sound is optional and must never interrupt the timer.
+      }
     }
 
-    if (account?.preferences.notifications_enabled !== false && "Notification" in window && Notification.permission === "granted") {
-      new Notification(title, { body });
-    }
+    void showCompletionNotification(title, body);
   }
 
   function requestNotificationPermission() {
     if (account?.preferences.notifications_enabled === false) return;
     if ("Notification" in window && Notification.permission === "default") {
-      void Notification.requestPermission();
+      void Notification.requestPermission()
+        .then((permission) => {
+          if (permission === "granted" && "serviceWorker" in navigator) {
+            return navigator.serviceWorker.register("/notification-sw.js", {
+              scope: "/",
+            });
+          }
+        })
+        .catch(() => undefined);
     }
   }
 
@@ -485,30 +522,26 @@ export default function Home() {
     setEndAt(null);
     setStatus("saving");
     setSaveErrorStatus(null);
-    setCompletionDiagnostic(null);
     setSavedWithoutCategory(false);
 
-    let completionStage = "preparing-request";
+    const now = new Date();
+    const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
+      .toISOString()
+      .slice(0, 10);
 
+    const sessionData = {
+      work_time: focusMinutes,
+      rest_time: restMinutes,
+      session_date: localDate,
+      goal: sessionGoal.trim() || null,
+      category_id: selectedCategoryId,
+      client_session_id: clientSessionId ?? createClientSessionId(),
+    };
+
+    if (!clientSessionId) setClientSessionId(sessionData.client_session_id);
+
+    let createdSession;
     try {
-      const now = new Date();
-      const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
-        .toISOString()
-        .slice(0, 10);
-
-      const sessionData = {
-        work_time: focusMinutes,
-        rest_time: restMinutes,
-        session_date: localDate,
-        goal: sessionGoal.trim() || null,
-        category_id: selectedCategoryId,
-        client_session_id: clientSessionId ?? createClientSessionId(),
-      };
-
-      if (!clientSessionId) setClientSessionId(sessionData.client_session_id);
-
-      let createdSession;
-      completionStage = "saving-session";
       try {
         createdSession = await createSession(sessionData);
       } catch (error) {
@@ -524,36 +557,29 @@ export default function Home() {
         setSelectedCategoryId(null);
         setSavedWithoutCategory(true);
       }
-
-      completionStage = "session-saved";
-      addCompletedSession(focusMinutes);
-      setActiveSessionId(createdSession.id);
-      setFocusQuality(null);
-      setDistraction(null);
-      setDistractionNote("");
-      setReflectionSkipped(false);
-      setReflectionStatus("idle");
-      setClientSessionId(null);
-      completionStage = "showing-notification";
-      announceTimerChange(t("focusFinishedTitle"), t("autoRestStarted"));
-      completionStage = "starting-rest";
-      setImmersiveMode(false);
-      setMode("rest");
-      setRemainingSeconds(restMinutes * 60);
-      setEndAt(Date.now() + restMinutes * 60_000);
-      setStatus("running");
     } catch (error) {
-      const errorName = error instanceof Error ? error.name : "UnknownError";
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const diagnostic = `${completionStage} | ${errorName}: ${errorMessage}`;
-      console.error("[timer-completion-diagnostic]", diagnostic, error);
-      setCompletionDiagnostic(diagnostic);
       saveStartedRef.current = false;
       setSaveErrorStatus(
         error instanceof SessionRequestError ? error.status : 0,
       );
       setStatus("save-error");
+      return;
     }
+
+    addCompletedSession(focusMinutes);
+    setActiveSessionId(createdSession.id);
+    setFocusQuality(null);
+    setDistraction(null);
+    setDistractionNote("");
+    setReflectionSkipped(false);
+    setReflectionStatus("idle");
+    setClientSessionId(null);
+    setImmersiveMode(false);
+    setMode("rest");
+    setRemainingSeconds(restMinutes * 60);
+    setEndAt(Date.now() + restMinutes * 60_000);
+    setStatus("running");
+    announceTimerChange(t("focusFinishedTitle"), t("autoRestStarted"));
   }
 
   function cancelSession() {
@@ -568,7 +594,6 @@ export default function Home() {
     setDistractionNote("");
     setReflectionSkipped(false);
     setReflectionStatus("idle");
-    setCompletionDiagnostic(null);
     setClientSessionId(null);
     setImmersiveMode(false);
   }
@@ -731,20 +756,13 @@ export default function Home() {
               )}
             </div>
             {status === "save-error" && (
-              <>
-                <p className="save-feedback" role="alert">
-                  {saveErrorStatus === 401
-                    ? t("sessionSaveAuthError")
-                    : saveErrorStatus === 422
-                      ? t("sessionSaveCategoryError")
-                      : t("sessionSaveError")}
-                </p>
-                {completionDiagnostic && (
-                  <p className="save-feedback" data-testid="completion-diagnostic">
-                    Diagnóstico temporário: <code>{completionDiagnostic}</code>
-                  </p>
-                )}
-              </>
+              <p className="save-feedback" role="alert">
+                {saveErrorStatus === 401
+                  ? t("sessionSaveAuthError")
+                  : saveErrorStatus === 422
+                    ? t("sessionSaveCategoryError")
+                    : t("sessionSaveError")}
+              </p>
             )}
             {savedWithoutCategory && (
               <p className="save-notice" role="status">

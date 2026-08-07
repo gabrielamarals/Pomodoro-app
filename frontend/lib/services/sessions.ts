@@ -64,24 +64,6 @@ export async function createSession(
   return response.json() as Promise<StudySession>;
 }
 
-export async function fetchSessionByClientId(
-  clientSessionId: string,
-): Promise<StudySession | null> {
-  const response = await apiFetch(
-    `/sessions/by-client-id/${encodeURIComponent(clientSessionId)}`,
-  );
-
-  if (response.status === 404) return null;
-  if (!response.ok) {
-    throw new SessionRequestError(
-      response.status,
-      `Session confirmation failed with status ${response.status}`,
-    );
-  }
-
-  return response.json() as Promise<StudySession>;
-}
-
 export async function updateSessionReflection(
   sessionId: number,
   reflection: SessionReflectionUpdate,

@@ -301,16 +301,6 @@ def get_sessions_by_date(session_date, user_id: int):
     return [dict(row) for row in rows]
 
 
-def get_session_by_client_id(client_session_id: str, user_id: int):
-    with engine.connect() as connection:
-        row = connection.execute(
-            _session_query(user_id).where(
-                sessions.c.client_session_id == client_session_id
-            )
-        ).mappings().first()
-    return dict(row) if row else None
-
-
 def get_recent_sessions(limit=20, user_id=None):
     if user_id is None:
         return []
