@@ -44,6 +44,7 @@ export async function createSession(
 ): Promise<StudySession> {
   const response = await apiFetch("/sessions", {
     method: "POST",
+    keepalive: true,
     headers: {
       "Content-Type": "application/json",
     },
@@ -57,6 +58,24 @@ export async function createSession(
     throw new SessionRequestError(
       response.status,
       body?.detail ?? `Create session request failed with status ${response.status}`,
+    );
+  }
+
+  return response.json() as Promise<StudySession>;
+}
+
+export async function fetchSessionByClientId(
+  clientSessionId: string,
+): Promise<StudySession | null> {
+  const response = await apiFetch(
+    `/sessions/by-client-id/${encodeURIComponent(clientSessionId)}`,
+  );
+
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new SessionRequestError(
+      response.status,
+      `Session confirmation failed with status ${response.status}`,
     );
   }
 

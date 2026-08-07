@@ -30,6 +30,7 @@ from app.database import (
     get_monthly_summary,
     get_recent_sessions,
     get_sessions_by_date,
+    get_session_by_client_id,
     save_session,
     create_category,
     get_categories,
@@ -204,6 +205,17 @@ def read_recent_sessions(request: Request, limit: int = Query(default=20, ge=1, 
 def read_session_by_date(date: date, request: Request):
     user = require_authenticated_user(request)
     return get_sessions_by_date(session_date=date, user_id=user["id"])
+
+@app.get("/sessions/by-client-id/{client_session_id}")
+def read_session_by_client_id(client_session_id: UUID, request: Request):
+    user = require_authenticated_user(request)
+    session = get_session_by_client_id(str(client_session_id), user["id"])
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found.",
+        )
+    return session
 
 @app.post("/sessions", status_code=status.HTTP_201_CREATED)
 def create_session(session: SessionCreate, request: Request):

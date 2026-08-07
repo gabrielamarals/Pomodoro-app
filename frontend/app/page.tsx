@@ -7,6 +7,7 @@ import { formatMinutes } from "../lib/formatters/time";
 import { useDailySummary } from "../lib/hooks/useDailySummary";
 import {
   createSession,
+  fetchSessionByClientId,
   SessionRequestError,
   updateSessionReflection,
 } from "../lib/services/sessions";
@@ -75,7 +76,19 @@ async function createSessionReliably(
     if (!isTransientFailure) throw error;
 
     await new Promise((resolve) => window.setTimeout(resolve, 500));
-    return createSession(session);
+    try {
+      return await createSession(session);
+    } catch (retryError) {
+      try {
+        const confirmedSession = await fetchSessionByClientId(
+          session.client_session_id,
+        );
+        if (confirmedSession) return confirmedSession;
+      } catch {
+        // Preserve the original retry failure if confirmation is unavailable.
+      }
+      throw retryError;
+    }
   }
 }
 

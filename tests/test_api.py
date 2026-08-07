@@ -70,6 +70,7 @@ class ApiFlowTests(unittest.TestCase):
 
     def test_session_retry_is_idempotent(self):
         self._create_and_login(self.client_a, "retry@example.com")
+        self._create_and_login(self.client_b, "retry-b@example.com")
         client_session_id = str(uuid4())
         payload = {
             "work_time": 25,
@@ -87,6 +88,17 @@ class ApiFlowTests(unittest.TestCase):
         self.assertEqual(retry.status_code, 201)
         self.assertEqual(first.json()["id"], retry.json()["id"])
         self.assertEqual(len(self.client_a.get("/sessions/recent").json()), 1)
+        confirmed = self.client_a.get(
+            f"/sessions/by-client-id/{client_session_id}"
+        )
+        self.assertEqual(confirmed.status_code, 200)
+        self.assertEqual(confirmed.json()["id"], first.json()["id"])
+        self.assertEqual(
+            self.client_b.get(
+                f"/sessions/by-client-id/{client_session_id}"
+            ).status_code,
+            404,
+        )
 
     def test_onboarding_and_preferences_persist(self):
         self._create_and_login(self.client_a, "profile@example.com")
