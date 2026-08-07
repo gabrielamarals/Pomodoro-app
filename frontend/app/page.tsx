@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AppNavigation } from "./components/AppNavigation";
 import { formatMinutes } from "../lib/formatters/time";
 import { useDailySummary } from "../lib/hooks/useDailySummary";
 import {
   createSession,
+  SessionRequestError,
   updateSessionReflection,
 } from "../lib/services/sessions";
 import { useCategories } from "../lib/hooks/useCategories";
@@ -109,6 +111,7 @@ function DurationControl({
 }
 
 export default function Home() {
+  const router = useRouter();
   const { account, isLoading: accountLoading } = useCurrentAccount();
   const { locale, t } = useI18n();
   const distractionOptions: Array<{ value: DistractionOption; label: string }> = [
@@ -149,6 +152,8 @@ export default function Home() {
   const [reflectionStatus, setReflectionStatus] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  const [saveErrorStatus, setSaveErrorStatus] = useState<number | null>(null);
+  const [savedWithoutCategory, setSavedWithoutCategory] = useState(false);
   const [immersiveMode, setImmersiveMode] = useState(false);
   const saveStartedRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -226,10 +231,7 @@ export default function Home() {
 
       if (savedState) {
         const saved = JSON.parse(savedState) as PersistedTimerState;
-        const restoredStatus =
-          saved.status === "saving" || saved.status === "save-error"
-            ? "ready"
-            : saved.status;
+        const restoredStatus = saved.status === "saving" ? "save-error" : saved.status;
         const restoredRemaining =
           restoredStatus === "running" && saved.endAt
             ? Math.max(0, Math.ceil((saved.endAt - Date.now()) / 1000))
@@ -262,6 +264,8 @@ export default function Home() {
         setDistractionNote("");
         setReflectionSkipped(false);
         setImmersiveMode(false);
+        setSaveErrorStatus(null);
+        setSavedWithoutCategory(false);
         setMode("focus");
         setStatus("ready");
         setRemainingSeconds(defaultFocus * 60);
@@ -273,6 +277,13 @@ export default function Home() {
       setIsHydrated(true);
     }
   }, [account, accountLoading, timerStorageKey]);
+
+  useEffect(() => {
+    if (!categories || selectedCategoryId === null) return;
+    if (!categories.some((category) => category.id === selectedCategoryId)) {
+      setSelectedCategoryId(null);
+    }
+  }, [categories, selectedCategoryId]);
 
   useEffect(() => {
     if (!isHydrated || status !== "running") return;
@@ -404,6 +415,11 @@ export default function Home() {
   function handlePrimaryAction() {
     if (status === "saving") return;
 
+    if (!accountLoading && !account) {
+      router.push("/login");
+      return;
+    }
+
     if (status === "save-error") {
       void saveCompletedFocus();
       return;
@@ -447,6 +463,8 @@ export default function Home() {
     saveStartedRef.current = true;
     setEndAt(null);
     setStatus("saving");
+    setSaveErrorStatus(null);
+    setSavedWithoutCategory(false);
 
     try {
       const now = new Date();
@@ -454,13 +472,30 @@ export default function Home() {
         .toISOString()
         .slice(0, 10);
 
-      const createdSession = await createSession({
+      const sessionData = {
         work_time: focusMinutes,
         rest_time: restMinutes,
         session_date: localDate,
         goal: sessionGoal.trim() || null,
         category_id: selectedCategoryId,
-      });
+      };
+
+      let createdSession;
+      try {
+        createdSession = await createSession(sessionData);
+      } catch (error) {
+        const categoryIsInvalid =
+          error instanceof SessionRequestError &&
+          error.status === 422 &&
+          selectedCategoryId !== null &&
+          error.detail === "Category does not exist.";
+
+        if (!categoryIsInvalid) throw error;
+
+        createdSession = await createSession({ ...sessionData, category_id: null });
+        setSelectedCategoryId(null);
+        setSavedWithoutCategory(true);
+      }
 
       addCompletedSession(focusMinutes);
       setActiveSessionId(createdSession.id);
@@ -475,8 +510,11 @@ export default function Home() {
       setRemainingSeconds(restMinutes * 60);
       setEndAt(Date.now() + restMinutes * 60_000);
       setStatus("running");
-    } catch {
+    } catch (error) {
       saveStartedRef.current = false;
+      setSaveErrorStatus(
+        error instanceof SessionRequestError ? error.status : 0,
+      );
       setStatus("save-error");
     }
   }
@@ -549,7 +587,9 @@ export default function Home() {
             ? t("pause")
             : status === "paused"
               ? t("continue")
-              : mode === "focus"
+              : !accountLoading && !account
+                ? t("signInToStart")
+                : mode === "focus"
                 ? t("startFocus")
                 : t("startRest");
 
@@ -571,47 +611,49 @@ export default function Home() {
 
         <div className="content-grid">
           <section className="timer-card" aria-labelledby="timer-title">
-            {(status === "running" || status === "paused") && (
-              <button
-                aria-expanded={!immersiveMode}
-                aria-label={immersiveMode ? t("showControls") : t("hideControls")}
-                className="focus-mode-toggle"
-                onClick={() => setImmersiveMode((current) => !current)}
-                type="button"
-              >
-                <span aria-hidden="true">{immersiveMode ? "☰" : "×"}</span>
-                {immersiveMode ? t("showControls") : t("hideControls")}
-              </button>
-            )}
-            <div className="mode-switch" aria-label={t("selectMode")}>
-              <button
-                type="button"
-                className={mode === "focus" ? "selected" : ""}
-                aria-pressed={mode === "focus"}
-                disabled={
-                  status === "running" ||
-                  status === "paused" ||
-                  status === "saving" ||
-                  status === "save-error"
-                }
-                onClick={() => selectMode("focus")}
-              >
-                {t("focus")}
-              </button>
-              <button
-                type="button"
-                className={mode === "rest" ? "selected" : ""}
-                aria-pressed={mode === "rest"}
-                disabled={
-                  status === "running" ||
-                  status === "paused" ||
-                  status === "saving" ||
-                  status === "save-error"
-                }
-                onClick={() => selectMode("rest")}
-              >
-                {t("rest")}
-              </button>
+            <div className="timer-toolbar">
+              <div className="mode-switch" aria-label={t("selectMode")}>
+                <button
+                  type="button"
+                  className={mode === "focus" ? "selected" : ""}
+                  aria-pressed={mode === "focus"}
+                  disabled={
+                    status === "running" ||
+                    status === "paused" ||
+                    status === "saving" ||
+                    status === "save-error"
+                  }
+                  onClick={() => selectMode("focus")}
+                >
+                  {t("focus")}
+                </button>
+                <button
+                  type="button"
+                  className={mode === "rest" ? "selected" : ""}
+                  aria-pressed={mode === "rest"}
+                  disabled={
+                    status === "running" ||
+                    status === "paused" ||
+                    status === "saving" ||
+                    status === "save-error"
+                  }
+                  onClick={() => selectMode("rest")}
+                >
+                  {t("rest")}
+                </button>
+              </div>
+              {(status === "running" || status === "paused") && (
+                <button
+                  aria-expanded={!immersiveMode}
+                  aria-label={immersiveMode ? t("showControls") : t("hideControls")}
+                  className="focus-mode-toggle"
+                  onClick={() => setImmersiveMode((current) => !current)}
+                  type="button"
+                >
+                  <span aria-hidden="true">{immersiveMode ? "☰" : "×"}</span>
+                  <span>{immersiveMode ? t("showControls") : t("hideControls")}</span>
+                </button>
+              )}
             </div>
 
             <div
@@ -635,7 +677,7 @@ export default function Home() {
               <button
                 className="primary-action"
                 type="button"
-                disabled={status === "saving"}
+                disabled={status === "saving" || accountLoading}
                 onClick={handlePrimaryAction}
               >
                 <span>{status === "running" ? "Ⅱ" : "▶"}</span>
@@ -651,7 +693,16 @@ export default function Home() {
             </div>
             {status === "save-error" && (
               <p className="save-feedback" role="alert">
-                {t("sessionSaveError")}
+                {saveErrorStatus === 401
+                  ? t("sessionSaveAuthError")
+                  : saveErrorStatus === 422
+                    ? t("sessionSaveCategoryError")
+                    : t("sessionSaveError")}
+              </p>
+            )}
+            {savedWithoutCategory && (
+              <p className="save-notice" role="status">
+                {t("sessionSavedWithoutCategory")}
               </p>
             )}
           </section>

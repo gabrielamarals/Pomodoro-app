@@ -27,6 +27,16 @@ export type SessionReflectionUpdate = {
   distraction_note: string | null;
 };
 
+export class SessionRequestError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly detail: string,
+  ) {
+    super(detail);
+    this.name = "SessionRequestError";
+  }
+}
+
 export async function createSession(
   session: SessionCreate,
 ): Promise<StudySession> {
@@ -39,7 +49,13 @@ export async function createSession(
   });
 
   if (!response.ok) {
-    throw new Error(`Create session request failed with status ${response.status}`);
+    const body = (await response.json().catch(() => null)) as {
+      detail?: string;
+    } | null;
+    throw new SessionRequestError(
+      response.status,
+      body?.detail ?? `Create session request failed with status ${response.status}`,
+    );
   }
 
   return response.json() as Promise<StudySession>;

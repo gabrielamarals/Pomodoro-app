@@ -423,13 +423,19 @@ h2 {
   border-radius: 28px;
 }
 
+.timer-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) auto;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
 .focus-mode-toggle {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  position: absolute;
-  top: 22px;
-  right: 24px;
   min-height: 34px;
   padding: 0 11px;
   border: 1px solid var(--line);
@@ -457,6 +463,10 @@ h2 {
   padding: 5px;
   border-radius: 14px;
   background: var(--surface-soft);
+}
+
+.timer-toolbar .mode-switch {
+  width: 100%;
 }
 
 .mode-switch button {
@@ -2604,6 +2614,15 @@ html[data-theme="ember"] .onboarding-card select { color-scheme: dark; }
     min-height: 520px;
     padding: 18px 16px 26px;
     border-radius: 22px;
+  }
+
+  .timer-toolbar {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .focus-mode-toggle {
+    justify-self: end;
   }
 
   .focus-mode .timer-card {
