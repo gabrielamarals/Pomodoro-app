@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from uuid import uuid4
 
 
 _temp_directory = tempfile.TemporaryDirectory()
@@ -52,6 +53,7 @@ class ApiFlowTests(unittest.TestCase):
             "session_date": "2026-08-07",
             "goal": "SQLAlchemy",
             "category_id": category_a["id"],
+            "client_session_id": str(uuid4()),
         })
         self.assertEqual(created.status_code, 201)
 
@@ -63,7 +65,28 @@ class ApiFlowTests(unittest.TestCase):
             "rest_time": 5,
             "session_date": "2026-08-07",
             "category_id": category_a["id"],
+            "client_session_id": str(uuid4()),
         }).status_code, 422)
+
+    def test_session_retry_is_idempotent(self):
+        self._create_and_login(self.client_a, "retry@example.com")
+        client_session_id = str(uuid4())
+        payload = {
+            "work_time": 25,
+            "rest_time": 5,
+            "session_date": "2026-08-07",
+            "goal": "Reliable save",
+            "category_id": None,
+            "client_session_id": client_session_id,
+        }
+
+        first = self.client_a.post("/sessions", json=payload)
+        retry = self.client_a.post("/sessions", json=payload)
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(retry.status_code, 201)
+        self.assertEqual(first.json()["id"], retry.json()["id"])
+        self.assertEqual(len(self.client_a.get("/sessions/recent").json()), 1)
 
     def test_onboarding_and_preferences_persist(self):
         self._create_and_login(self.client_a, "profile@example.com")

@@ -3,6 +3,7 @@ import secrets
 from contextlib import asynccontextmanager
 from urllib.parse import urlencode
 from datetime import date
+from uuid import UUID
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -68,6 +69,7 @@ class SessionCreate(BaseModel):
     session_date: date
     goal: str | None = Field(default=None, max_length=160)
     category_id: int | None = Field(default=None, ge=1)
+    client_session_id: UUID | None = None
 
 class SessionReflectionUpdate(BaseModel):
     focus_quality: int = Field(ge=0, le=5)
@@ -213,6 +215,9 @@ def create_session(session: SessionCreate, request: Request):
             session_date=session.session_date,
             goal=session.goal,
             category_id=session.category_id,
+            client_session_id=(
+                str(session.client_session_id) if session.client_session_id else None
+            ),
             user_id=user["id"]
         )
     except CategoryAccessError:

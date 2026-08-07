@@ -47,12 +47,14 @@ sessions = Table(
     Column("goal", String(160)),
     Column("category_id", Integer, ForeignKey("categories.id", ondelete="SET NULL")),
     Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True),
+    Column("client_session_id", String(36)),
     Column("focus_quality", Integer),
     Column("distraction", String(30)),
     Column("distraction_note", String(160)),
     CheckConstraint("work_time BETWEEN 1 AND 120", name="ck_sessions_work_time"),
     CheckConstraint("rest_time BETWEEN 1 AND 60", name="ck_sessions_rest_time"),
     CheckConstraint("focus_quality IS NULL OR focus_quality BETWEEN 0 AND 5", name="ck_sessions_focus_quality"),
+    UniqueConstraint("user_id", "client_session_id", name="uq_sessions_user_client_session"),
 )
 
 goals = Table(

@@ -11,6 +11,7 @@ export type StudySession = {
   focus_quality: number | null;
   distraction: string | null;
   distraction_note: string | null;
+  client_session_id: string | null;
 };
 
 export type SessionCreate = {
@@ -19,6 +20,7 @@ export type SessionCreate = {
   session_date: string;
   goal: string | null;
   category_id: number | null;
+  client_session_id: string;
 };
 
 export type SessionReflectionUpdate = {

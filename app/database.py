@@ -20,6 +20,7 @@ PREFERENCE_FIELDS = {
 SESSION_FIELDS = (
     "id", "work_time", "rest_time", "session_date", "goal", "category_id",
     "category_name", "focus_quality", "distraction", "distraction_note",
+    "client_session_id",
 )
 
 
@@ -132,6 +133,7 @@ def _session_query(user_id: int):
         sessions.c.focus_quality,
         sessions.c.distraction,
         sessions.c.distraction_note,
+        sessions.c.client_session_id,
     ).select_from(category_join).where(sessions.c.user_id == user_id)
 
 
@@ -171,31 +173,62 @@ def get_current_goal(user_id: int):
     return dict(row) if row else None
 
 
-def save_session(work_time, rest_time, session_date, goal=None, category_id=None, user_id=None):
+def save_session(
+    work_time,
+    rest_time,
+    session_date,
+    goal=None,
+    category_id=None,
+    client_session_id=None,
+    user_id=None,
+):
     if user_id is None:
         raise ValueError("An authenticated user is required.")
-    with engine.begin() as connection:
-        if category_id is not None:
-            owner = connection.execute(
-                select(categories.c.user_id).where(categories.c.id == category_id)
-            ).scalar_one_or_none()
-            if owner != user_id:
-                raise CategoryAccessError("Category does not belong to this user.")
-        result = connection.execute(insert(sessions).values(
-            work_time=work_time,
-            rest_time=rest_time,
-            session_date=str(session_date),
-            goal=goal,
-            category_id=category_id,
-            user_id=user_id,
-        ))
-        session_id = result.inserted_primary_key[0]
-    return {
-        "id": session_id, "work_time": work_time, "rest_time": rest_time,
-        "session_date": str(session_date), "goal": goal, "category_id": category_id,
-        "category_name": None, "focus_quality": None, "distraction": None,
-        "distraction_note": None,
-    }
+
+    def find_existing(connection):
+        if not client_session_id:
+            return None
+        return connection.execute(
+            _session_query(user_id).where(
+                sessions.c.client_session_id == client_session_id
+            )
+        ).mappings().first()
+
+    try:
+        with engine.begin() as connection:
+            existing = find_existing(connection)
+            if existing:
+                return dict(existing)
+
+            if category_id is not None:
+                owner = connection.execute(
+                    select(categories.c.user_id).where(categories.c.id == category_id)
+                ).scalar_one_or_none()
+                if owner != user_id:
+                    raise CategoryAccessError("Category does not belong to this user.")
+
+            result = connection.execute(insert(sessions).values(
+                work_time=work_time,
+                rest_time=rest_time,
+                session_date=str(session_date),
+                goal=goal,
+                category_id=category_id,
+                client_session_id=client_session_id,
+                user_id=user_id,
+            ))
+            session_id = result.inserted_primary_key[0]
+            created = connection.execute(
+                _session_query(user_id).where(sessions.c.id == session_id)
+            ).mappings().one()
+            return dict(created)
+    except IntegrityError:
+        # Two retries with the same client ID can arrive together. The unique
+        # constraint keeps one row; the other request returns that same row.
+        with engine.connect() as connection:
+            existing = find_existing(connection)
+        if existing:
+            return dict(existing)
+        raise
 
 
 def get_daily_summary(session_date, user_id: int):

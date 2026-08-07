@@ -49,9 +49,35 @@ type PersistedTimerState = {
   distractionNote: string;
   reflectionSkipped: boolean;
   immersiveMode: boolean;
+  clientSessionId: string | null;
 };
 
 const TIMER_STORAGE_PREFIX = "pomodoro.timer.v2";
+
+function createClientSessionId() {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+}
+
+async function createSessionReliably(
+  session: Parameters<typeof createSession>[0],
+) {
+  try {
+    return await createSession(session);
+  } catch (error) {
+    const isTransientFailure =
+      !(error instanceof SessionRequestError) || error.status >= 500;
+    if (!isTransientFailure) throw error;
+
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+    return createSession(session);
+  }
+}
 
 function formatTime(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
@@ -155,6 +181,7 @@ export default function Home() {
   const [saveErrorStatus, setSaveErrorStatus] = useState<number | null>(null);
   const [savedWithoutCategory, setSavedWithoutCategory] = useState(false);
   const [immersiveMode, setImmersiveMode] = useState(false);
+  const [clientSessionId, setClientSessionId] = useState<string | null>(null);
   const saveStartedRef = useRef(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const timerStorageKey = useMemo(
@@ -247,6 +274,7 @@ export default function Home() {
         setDistractionNote(saved.distractionNote ?? "");
         setReflectionSkipped(saved.reflectionSkipped ?? false);
         setImmersiveMode(saved.immersiveMode ?? false);
+        setClientSessionId(saved.clientSessionId ?? null);
         setMode(saved.mode);
         setStatus(restoredStatus);
         setRemainingSeconds(restoredRemaining);
@@ -264,6 +292,7 @@ export default function Home() {
         setDistractionNote("");
         setReflectionSkipped(false);
         setImmersiveMode(false);
+        setClientSessionId(null);
         setSaveErrorStatus(null);
         setSavedWithoutCategory(false);
         setMode("focus");
@@ -317,6 +346,7 @@ export default function Home() {
       setDistractionNote("");
       setReflectionSkipped(false);
       setReflectionStatus("idle");
+      setClientSessionId(createClientSessionId());
       setMode("focus");
       setRemainingSeconds(focusMinutes * 60);
       setEndAt(Date.now() + focusMinutes * 60_000);
@@ -347,11 +377,13 @@ export default function Home() {
       distractionNote,
       reflectionSkipped,
       immersiveMode,
+      clientSessionId,
     };
 
     window.localStorage.setItem(timerStorageKey, JSON.stringify(persistedState));
   }, [
     activeSessionId,
+    clientSessionId,
     distraction,
     distractionNote,
     endAt,
@@ -446,6 +478,9 @@ export default function Home() {
 
     if (mode === "focus") {
       saveStartedRef.current = false;
+      if (status === "ready" && !clientSessionId) {
+        setClientSessionId(createClientSessionId());
+      }
     }
 
     if (status === "ready" || status === "paused") {
@@ -478,11 +513,14 @@ export default function Home() {
         session_date: localDate,
         goal: sessionGoal.trim() || null,
         category_id: selectedCategoryId,
+        client_session_id: clientSessionId ?? createClientSessionId(),
       };
+
+      if (!clientSessionId) setClientSessionId(sessionData.client_session_id);
 
       let createdSession;
       try {
-        createdSession = await createSession(sessionData);
+        createdSession = await createSessionReliably(sessionData);
       } catch (error) {
         const categoryIsInvalid =
           error instanceof SessionRequestError &&
@@ -492,7 +530,7 @@ export default function Home() {
 
         if (!categoryIsInvalid) throw error;
 
-        createdSession = await createSession({ ...sessionData, category_id: null });
+        createdSession = await createSessionReliably({ ...sessionData, category_id: null });
         setSelectedCategoryId(null);
         setSavedWithoutCategory(true);
       }
@@ -504,6 +542,7 @@ export default function Home() {
       setDistractionNote("");
       setReflectionSkipped(false);
       setReflectionStatus("idle");
+      setClientSessionId(null);
       announceTimerChange(t("focusFinishedTitle"), t("autoRestStarted"));
       setImmersiveMode(false);
       setMode("rest");
@@ -531,6 +570,7 @@ export default function Home() {
     setDistractionNote("");
     setReflectionSkipped(false);
     setReflectionStatus("idle");
+    setClientSessionId(null);
     setImmersiveMode(false);
   }
 
