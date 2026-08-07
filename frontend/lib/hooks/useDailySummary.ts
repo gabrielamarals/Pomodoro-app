@@ -40,5 +40,17 @@ export function useDailySummary() {
     hasError,
     isLoading: !summary && !hasError,
     refresh: () => setReloadKey((current) => current + 1),
+    addCompletedSession: (workTime: number) => {
+      setSummary((current) =>
+        current
+          ? {
+              ...current,
+              session_count: current.session_count + 1,
+              total_work_time: current.total_work_time + workTime,
+            }
+          : current,
+      );
+      setReloadKey((current) => current + 1);
+    },
   };
 }

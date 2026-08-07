@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { I18nProvider } from "../lib/i18n/I18nProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Foco — Pomodoro para estudos",
-  description: "Organize sessões de foco e acompanhe sua evolução nos estudos.",
+  title: "Foco — Pomodoro",
+  description: "A focus timer and study progress tracker.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -26,13 +27,16 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             __html: `
               try {
                 const savedTheme = localStorage.getItem("pomodoro-theme") || "natural";
-                document.documentElement.dataset.theme = savedTheme;
+                const resolvedTheme = savedTheme === "system"
+                  ? window.matchMedia("(prefers-color-scheme: dark)").matches ? "ember" : "natural"
+                  : savedTheme;
+                document.documentElement.dataset.theme = resolvedTheme;
               } catch {}
             `,
           }}
         />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
+      <body className={`${geistSans.variable} ${geistMono.variable}`}><I18nProvider>{children}</I18nProvider></body>
     </html>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSessionsByDate } from "../../lib/hooks/useSessionsByDate";
 import type { DailySummary } from "../../lib/services/progress";
+import { useI18n } from "../../lib/i18n/I18nProvider";
 
 type StudyActivityMapProps = {
   month: string;
@@ -12,10 +13,9 @@ type StudyActivityMapProps = {
   isLoading: boolean;
   onCurrentMonth: () => void;
   onNextMonth: () => void;
+  onYearChange: (year: number) => void;
   onPreviousMonth: () => void;
 };
-
-const WEEKDAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
 function getIntensity(minutes: number) {
   if (minutes === 0) return 0;
@@ -25,8 +25,8 @@ function getIntensity(minutes: number) {
   return 4;
 }
 
-function formatDate(date: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
+function formatDate(date: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "long",
   }).format(new Date(`${date}T12:00:00`));
@@ -40,8 +40,16 @@ export function StudyActivityMap({
   isLoading,
   onCurrentMonth,
   onNextMonth,
+  onYearChange,
   onPreviousMonth,
 }: StudyActivityMapProps) {
+  const { locale, t } = useI18n();
+  const distractionLabels: Record<string, string> = {
+    noise: t("distractionNoise"), tiredness: t("distractionTiredness"), phone: t("distractionPhone"),
+    anxiety: t("distractionAnxiety"), difficulty: t("distractionDifficulty"),
+    interruption: t("distractionInterruption"), none: t("distractionNone"), other: t("distractionOther"),
+  };
+  const weekdayLabels = locale === "en" ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] : ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   const [year, monthNumber] = month.split("-").map(Number);
   const daysInMonth = new Date(year, monthNumber, 0).getDate();
   const firstWeekday = new Date(year, monthNumber - 1, 1).getDay();
@@ -57,7 +65,7 @@ export function StudyActivityMap({
     hasError: sessionsError,
     isLoading: sessionsLoading,
   } = useSessionsByDate(selectedDay?.date ?? null);
-  const monthLabel = new Intl.DateTimeFormat("pt-BR", {
+  const monthLabel = new Intl.DateTimeFormat(locale, {
     month: "long",
     year: "numeric",
   }).format(new Date(year, monthNumber - 1, 1));
@@ -65,6 +73,8 @@ export function StudyActivityMap({
     ...Array.from({ length: firstWeekday }, () => null),
     ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
   ];
+  const currentYear = new Date().getFullYear();
+  const availableYears = Array.from({ length: 11 }, (_, index) => currentYear - index);
 
   useEffect(() => {
     setSelectedDay(summaries.at(-1) ?? null);
@@ -85,14 +95,14 @@ export function StudyActivityMap({
     <section className="activity-card" aria-labelledby="activity-title">
       <div className="activity-heading">
         <div>
-          <p className="eyebrow">Mapa de constância</p>
-          <h2 id="activity-title">Sua atividade em {monthLabel}</h2>
+          <p className="eyebrow">{t("consistencyMap")}</p>
+          <h2 id="activity-title">{t("yourActivityIn")} {monthLabel}</h2>
         </div>
 
         <div className="activity-header-tools">
-          <nav className="activity-navigation" aria-label="Navegação do calendário">
+          <nav className="activity-navigation" aria-label={t("calendarNavigation")}>
             <button
-              aria-label="Mostrar mês anterior"
+              aria-label={t("previousMonth")}
               onClick={onPreviousMonth}
               type="button"
             >
@@ -103,10 +113,10 @@ export function StudyActivityMap({
               onClick={onCurrentMonth}
               type="button"
             >
-              Mês atual
+              {t("currentMonth")}
             </button>
             <button
-              aria-label="Mostrar próximo mês"
+              aria-label={t("nextMonth")}
               disabled={isCurrentMonth}
               onClick={onNextMonth}
               type="button"
@@ -114,13 +124,26 @@ export function StudyActivityMap({
               ›
             </button>
           </nav>
+          <label className="activity-year-label">
+            {t("year")}
+            <select
+              aria-label={t("selectCalendarYear")}
+              className="activity-year-select"
+              value={year}
+              onChange={(event) => onYearChange(Number(event.target.value))}
+            >
+              {availableYears.map((availableYear) => (
+                <option key={availableYear} value={availableYear}>{availableYear}</option>
+              ))}
+            </select>
+          </label>
 
-          <div className="activity-legend" aria-label="Intensidade de estudo">
-            <span>Menos</span>
+          <div className="activity-legend" aria-label={t("studyIntensity")}>
+            <span>{t("less")}</span>
             {[0, 1, 2, 3, 4].map((level) => (
               <i className={`activity-swatch level-${level}`} key={level} />
             ))}
-            <span>Mais</span>
+            <span>{t("more")}</span>
           </div>
         </div>
       </div>
@@ -129,7 +152,7 @@ export function StudyActivityMap({
         <div className="activity-calendar-scroll">
           <div className="activity-calendar">
             <div className="activity-weekdays" aria-hidden="true">
-              {WEEKDAY_LABELS.map((label) => (
+              {weekdayLabels.map((label) => (
                 <span key={label}>{label}</span>
               ))}
             </div>
@@ -144,8 +167,8 @@ export function StudyActivityMap({
                 const summary = summariesByDate.get(date);
                 const minutes = summary?.total_work_time ?? 0;
                 const sessions = summary?.session_count ?? 0;
-                const tooltip = `${formatDate(date)}: ${sessions} ${
-                  sessions === 1 ? "sessão" : "sessões"
+                const tooltip = `${formatDate(date, locale)}: ${sessions} ${
+                  sessions === 1 ? t("session") : t("sessions")
                 }, ${minutes} min`;
 
                 return (
@@ -165,61 +188,61 @@ export function StudyActivityMap({
               })}
             </div>
           </div>
-          {isLoading && <p className="activity-load-status">Carregando mês…</p>}
+          {isLoading && <p className="activity-load-status">{t("loadingMonth")}</p>}
           {hasError && (
-            <p className="activity-load-status">Não foi possível carregar este mês.</p>
+            <p className="activity-load-status">{t("noSessionsMonth")}</p>
           )}
         </div>
 
         <aside className="activity-detail" aria-live="polite">
           {selectedDay ? (
             <>
-              <span className="activity-detail-date">{formatDate(selectedDay.date)}</span>
+              <span className="activity-detail-date">{formatDate(selectedDay.date, locale)}</span>
               <div className="activity-detail-row">
-                <span>Tempo estudado</span>
+                <span>{t("studiedTime")}</span>
                 <strong>{selectedDay.total_work_time} min</strong>
               </div>
               <div className="activity-detail-row">
-                <span>Sessões concluídas</span>
+                <span>{t("completedSessions")}</span>
                 <strong>{selectedDay.session_count}</strong>
               </div>
               <div className="activity-session-details">
-                <span className="activity-session-heading">Detalhes das sessões</span>
+                <span className="activity-session-heading">{t("sessionDetails")}</span>
 
                 {sessionsError ? (
-                  <small>Não foi possível consultar os registros.</small>
+                  <small>{t("noDayRecords")}</small>
                 ) : sessionsLoading ? (
-                  <small>Carregando sessões…</small>
+                  <small>{t("loadingSessions")}</small>
                 ) : selectedSessions && selectedSessions.length > 0 ? (
                   <div className="activity-session-list">
                     {selectedSessions.map((session, index) => (
                       <div className="activity-session-item" key={session.id}>
-                        <span>Sessão {index + 1}</span>
+                        <span>{t("session")} {index + 1}</span>
                         <strong>{session.work_time} min</strong>
                         <span className="activity-session-goal">
-                          {session.goal || "Sem objetivo definido"}
+                          {session.goal || t("noGoal")}
                         </span>
                         <small>
-                          {session.category_name || "Sem categoria"} · {session.rest_time} min de descanso
+                          {session.category_name || t("noCategory")} · {session.rest_time} {t("minuteShort")} · {t("rest")}
                         </small>
                         <small>
                           {session.focus_quality === null
-                            ? "Sem check-in"
-                            : `Foco ${session.focus_quality}/5${session.distraction ? ` · ${session.distraction}` : ""}`}
+                            ? t("noCheckin")
+                            : `${t("focus")} ${session.focus_quality}/5${session.distraction ? ` · ${distractionLabels[session.distraction] ?? session.distraction}` : ""}`}
                         </small>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <small>Nenhuma sessão registrada neste dia.</small>
+                  <small>{t("noDaySessions")}</small>
                 )}
               </div>
             </>
           ) : (
             <>
-              <span>Nenhum dia selecionado</span>
+              <span>{t("noDaySelected")}</span>
               <strong>—</strong>
-              <small>Clique em um dia para ver os detalhes.</small>
+              <small>{t("clickDay")}</small>
             </>
           )}
         </aside>

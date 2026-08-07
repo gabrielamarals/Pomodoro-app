@@ -2,23 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AppNavigation } from "../components/AppNavigation";
+import { useI18n } from "../../lib/i18n/I18nProvider";
 import { useCategories } from "../../lib/hooks/useCategories";
 import { useSessionsByCategory } from "../../lib/hooks/useSessionsByCategory";
 import type { StudySession } from "../../lib/services/sessions";
 
-const DISTRACTION_LABELS: Record<string, string> = {
-  noise: "Barulho",
-  tiredness: "Cansaço",
-  phone: "Celular",
-  anxiety: "Ansiedade",
-  difficulty: "Dificuldade da matéria",
-  interruption: "Interrupção",
-  none: "Nenhuma distração",
-  other: "Outra distração",
-};
-
-function formatDate(date: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
+function formatDate(date: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     weekday: "short",
     day: "2-digit",
     month: "short",
@@ -27,15 +17,17 @@ function formatDate(date: string) {
 }
 
 function SessionReflection({ session }: { session: StudySession }) {
+  const { t } = useI18n();
+  const distractionLabels: Record<string, string> = { noise: t("distractionNoise"), tiredness: t("distractionTiredness"), phone: t("distractionPhone"), anxiety: t("distractionAnxiety"), difficulty: t("distractionDifficulty"), interruption: t("distractionInterruption"), none: t("distractionNone"), other: t("distractionOther") };
   return (
     <div className="category-session-reflection">
       <span>
         {session.focus_quality === null
-          ? "Sem check-in"
-          : `Foco ${session.focus_quality}/5`}
+          ? t("noCheckin")
+          : `${t("focus")} ${session.focus_quality}/5`}
       </span>
       {session.distraction && (
-        <span>{DISTRACTION_LABELS[session.distraction] ?? session.distraction}</span>
+        <span>{distractionLabels[session.distraction] ?? session.distraction}</span>
       )}
       {session.distraction_note && <p>“{session.distraction_note}”</p>}
     </div>
@@ -43,11 +35,12 @@ function SessionReflection({ session }: { session: StudySession }) {
 }
 
 export default function CategoriesPage() {
+  const { locale, t } = useI18n();
   const {
     categories,
     hasError: categoriesError,
     isLoading: categoriesLoading,
-  } = useCategories();
+  } = useCategories(locale);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const {
     sessions,
@@ -90,28 +83,28 @@ export default function CategoriesPage() {
       <section className="workspace categories-workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">Seu mapa de estudos</p>
-            <h1>Categorias que mostram seu caminho.</h1>
+            <p className="eyebrow">{t("categoriesEyebrow")}</p>
+            <h1>{t("categoriesTitle")}</h1>
           </div>
-          <span className="demo-badge">dados da API</span>
+          <span className="demo-badge">{t("yourSpace")}</span>
         </header>
 
         {categoriesError ? (
           <div className="category-page-empty">
-            <strong>Não foi possível carregar suas categorias.</strong>
-            <p>Confirme se a API está rodando e atualize a página.</p>
+            <strong>{t("noCategories")}</strong>
+            <p>{t("signInCategories")}</p>
           </div>
         ) : categoriesLoading ? (
           <div className="category-page-empty">
-            <strong>Carregando categorias…</strong>
+            <strong>{t("loadingCategories")}</strong>
           </div>
         ) : categories && categories.length > 0 ? (
           <div className="categories-layout">
             <section className="categories-list-card" aria-labelledby="categories-list-title">
               <div className="categories-card-heading">
                 <div>
-                  <p className="eyebrow">Áreas de estudo</p>
-                  <h2 id="categories-list-title">Suas categorias</h2>
+                  <p className="eyebrow">{t("studyAreas")}</p>
+                  <h2 id="categories-list-title">{t("yourCategories")}</h2>
                 </div>
                 <span>{categories.length}</span>
               </div>
@@ -134,20 +127,20 @@ export default function CategoriesPage() {
             <section className="category-detail-card" aria-labelledby="category-detail-title">
               <header className="category-detail-heading">
                 <div>
-                  <p className="eyebrow">Sessões registradas</p>
+                  <p className="eyebrow">{t("recordedSessions")}</p>
                   <h2 id="category-detail-title">
-                    {selectedCategory?.name ?? "Categoria"}
+                    {selectedCategory?.name ?? t("category")}
                   </h2>
                 </div>
                 <div className="category-detail-stats">
                   <strong>{totalMinutes} min</strong>
-                  <span>{loadedSessions.length} sessões · foco médio {averageQuality}</span>
+                  <span>{loadedSessions.length} {loadedSessions.length === 1 ? t("session") : t("sessions")} · {t("averageFocus")} {averageQuality}</span>
                 </div>
               </header>
 
               {goals.length > 0 && (
                 <div className="category-goals-summary">
-                  <span>Objetivos registrados</span>
+                  <span>{t("recordedGoals")}</span>
                   <div>
                     {goals.map((goal) => (
                       <span key={goal}>{goal}</span>
@@ -158,21 +151,21 @@ export default function CategoriesPage() {
 
               {sessionsError ? (
                 <div className="category-page-empty compact">
-                  <strong>Não foi possível carregar as sessões.</strong>
+                  <strong>{t("noCategorySessions")}</strong>
                 </div>
               ) : sessionsLoading ? (
                 <div className="category-page-empty compact">
-                  <strong>Carregando sessões…</strong>
+                  <strong>{t("loadingSessions")}</strong>
                 </div>
               ) : loadedSessions.length > 0 ? (
                 <div className="category-session-list">
                   {loadedSessions.map((session) => (
                     <article className="category-session" key={session.id}>
                       <div className="category-session-main">
-                        <span>{formatDate(session.session_date)}</span>
-                        <strong>{session.work_time} min de foco</strong>
+                        <span>{formatDate(session.session_date, locale)}</span>
+                        <strong>{session.work_time} {t("minuteShort")} · {t("focus")}</strong>
                         <small>
-                          {session.goal || "Sessão sem objetivo definido"} · {session.rest_time} min de descanso
+                          {session.goal || t("noGoal")} · {session.rest_time} {t("minuteShort")} · {t("rest")}
                         </small>
                       </div>
                       <SessionReflection session={session} />
@@ -181,16 +174,16 @@ export default function CategoriesPage() {
                 </div>
               ) : (
                 <div className="category-page-empty compact">
-                  <strong>Nenhuma sessão nesta categoria.</strong>
-                  <p>Escolha esta categoria ao iniciar seu próximo foco.</p>
+                  <strong>{t("noCategorySessions")}</strong>
+                  <p>{t("chooseCategoryNext")}</p>
                 </div>
               )}
             </section>
           </div>
         ) : (
           <div className="category-page-empty">
-            <strong>Você ainda não tem categorias.</strong>
-            <p>Crie uma categoria na tela do temporizador para começar.</p>
+            <strong>{t("noCategories")}</strong>
+            <p>{t("createCategoryTimer")}</p>
           </div>
         )}
       </section>

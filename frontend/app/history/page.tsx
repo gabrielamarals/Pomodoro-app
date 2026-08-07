@@ -1,27 +1,17 @@
 "use client";
 
 import { AppNavigation } from "../components/AppNavigation";
+import { useI18n } from "../../lib/i18n/I18nProvider";
 import { useRecentSessions } from "../../lib/hooks/useRecentSessions";
 import type { StudySession } from "../../lib/services/sessions";
 
-function formatDate(date: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
+function formatDate(date: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     weekday: "long",
     day: "2-digit",
     month: "long",
   }).format(new Date(`${date}T12:00:00`));
 }
-
-const DISTRACTION_LABELS: Record<string, string> = {
-  noise: "barulho",
-  tiredness: "cansaço",
-  phone: "celular",
-  anxiety: "ansiedade",
-  difficulty: "dificuldade",
-  interruption: "interrupção",
-  none: "nenhuma distração",
-  other: "outra distração",
-};
 
 function groupSessionsByDate(sessions: StudySession[]) {
   return sessions.reduce<Record<string, StudySession[]>>((groups, session) => {
@@ -32,6 +22,8 @@ function groupSessionsByDate(sessions: StudySession[]) {
 }
 
 export default function HistoryPage() {
+  const { locale, t } = useI18n();
+  const distractionLabels: Record<string, string> = { noise: t("distractionNoise"), tiredness: t("distractionTiredness"), phone: t("distractionPhone"), anxiety: t("distractionAnxiety"), difficulty: t("distractionDifficulty"), interruption: t("distractionInterruption"), none: t("distractionNone"), other: t("distractionOther") };
   const { sessions, hasError, isLoading } = useRecentSessions(20);
   const loadedSessions = sessions ?? [];
   const sessionsByDate = groupSessionsByDate(loadedSessions);
@@ -48,25 +40,25 @@ export default function HistoryPage() {
       <section className="workspace history-workspace">
         <header className="topbar history-topbar">
           <div>
-            <p className="eyebrow">Seu caminho até aqui</p>
-            <h1>Histórico de sessões.</h1>
+            <p className="eyebrow">{t("historyEyebrow")}</p>
+            <h1>{t("historyTitle")}</h1>
           </div>
           <span className="demo-badge">
-            {hasError ? "API indisponível" : isLoading ? "carregando" : "dados reais"}
+            {hasError ? t("noSessionsBadge") : isLoading ? t("loading") : t("realData")}
           </span>
         </header>
 
-        <section className="history-summary" aria-label="Resumo do histórico">
+        <section className="history-summary" aria-label={t("historySummaryAria")}>
           <div>
-            <span>Sessões exibidas</span>
+            <span>{t("displayedSessions")}</span>
             <strong>{sessions ? sessions.length : "—"}</strong>
           </div>
           <div>
-            <span>Tempo de foco</span>
+            <span>{t("focusTime")}</span>
             <strong>{sessions ? `${totalFocusTime} min` : "—"}</strong>
           </div>
           <div>
-            <span>Dias estudados</span>
+            <span>{t("studiedDays")}</span>
             <strong>{sessions ? studiedDays : "—"}</strong>
           </div>
         </section>
@@ -74,10 +66,10 @@ export default function HistoryPage() {
         <section className="history-card" aria-labelledby="history-list-title">
           <div className="history-card-heading">
             <div>
-              <p className="eyebrow">Sessões recentes</p>
-              <h2 id="history-list-title">Atividade registrada</h2>
+              <p className="eyebrow">{t("recentSessions")}</p>
+              <h2 id="history-list-title">{t("recordedActivity")}</h2>
             </div>
-            <span className="history-period">Até 20 registros</span>
+            <span className="history-period">{t("upTo20")}</span>
           </div>
 
           {loadedSessions.length > 0 ? (
@@ -86,10 +78,10 @@ export default function HistoryPage() {
                 <section className="history-day" key={date}>
                   <header>
                     <div>
-                      <h3>{formatDate(date)}</h3>
+                      <h3>{formatDate(date, locale)}</h3>
                       <span>
                         {daySessions.length}{" "}
-                        {daySessions.length === 1 ? "sessão" : "sessões"}
+                        {daySessions.length === 1 ? t("session") : t("sessions")}
                       </span>
                     </div>
                     <strong>
@@ -97,7 +89,7 @@ export default function HistoryPage() {
                         (total, session) => total + session.work_time,
                         0,
                       )}{" "}
-                      min de foco
+                      {t("minuteShort")} · {t("focus")}
                     </strong>
                   </header>
 
@@ -108,22 +100,22 @@ export default function HistoryPage() {
                           <span>{String(index + 1).padStart(2, "0")}</span>
                         </div>
                         <div className="history-session-label">
-                          <strong>{session.goal || "Sessão sem objetivo definido"}</strong>
+                          <strong>{session.goal || t("noGoal")}</strong>
                           <small>
-                            {session.category_name || "Sem categoria"} · Registro #{session.id}
+                            {session.category_name || t("noCategory")} · {t("record")} #{session.id}
                           </small>
                           <small>
                             {session.focus_quality === null
-                              ? "Sem check-in"
-                              : `Foco ${session.focus_quality}/5${session.distraction ? ` · ${DISTRACTION_LABELS[session.distraction] ?? session.distraction}` : ""}`}
+                              ? t("noCheckin")
+                              : `${t("focus")} ${session.focus_quality}/5${session.distraction ? ` · ${distractionLabels[session.distraction] ?? session.distraction}` : ""}`}
                           </small>
                         </div>
                         <div className="history-session-metric">
-                          <span>Foco</span>
+                          <span>{t("focus")}</span>
                           <strong>{session.work_time} min</strong>
                         </div>
                         <div className="history-session-metric">
-                          <span>Descanso</span>
+                          <span>{t("rest")}</span>
                           <strong>{session.rest_time} min</strong>
                         </div>
                       </article>
@@ -134,25 +126,22 @@ export default function HistoryPage() {
             </div>
           ) : hasError ? (
             <div className="history-empty">
-              <strong>Não foi possível acessar a API.</strong>
-              <p>Confirme se o `api.py` está rodando e atualize a página.</p>
+              <strong>{t("noSessionsFound")}</strong>
+              <p>{t("signInHistory")}</p>
             </div>
           ) : isLoading ? (
             <div className="history-empty">
-              <strong>Carregando seu histórico…</strong>
-              <p>Aguardando a resposta da API.</p>
+              <strong>{t("loadingHistory")}</strong>
+              <p>{t("historyWillAppear")}</p>
             </div>
           ) : (
             <div className="history-empty">
-              <strong>Nenhuma sessão encontrada.</strong>
-              <p>Quando você concluir uma sessão, ela aparecerá aqui.</p>
+              <strong>{t("noSessionsFound")}</strong>
+              <p>{t("sessionWillAppear")}</p>
             </div>
           )}
         </section>
 
-        <p className="data-note">
-          Os registros desta tela vêm de `GET /sessions/recent?limit=20`.
-        </p>
       </section>
     </main>
   );

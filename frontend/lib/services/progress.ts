@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = "http://localhost:8000";
 
 export type DailySummary = {
   date: string;
@@ -20,6 +20,13 @@ export async function fetchDailySummary(
   }
 
   return response.json() as Promise<DailySummary>;
+}
+
+export async function fetchCurrentStreak(signal?: AbortSignal): Promise<number> {
+  const response = await fetch(`${API_BASE_URL}/sessions/streak`, { signal });
+  if (!response.ok) throw new Error(`Streak request failed with status ${response.status}`);
+  const data = (await response.json()) as { current_streak: number };
+  return data.current_streak;
 }
 
 export async function fetchMonthlySummary(

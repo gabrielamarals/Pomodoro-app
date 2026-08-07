@@ -19,14 +19,15 @@ responsibility unless he explicitly requests assistance with a specific change.
 
 ## Project status
 
-The project is under active development.
+The local v0.1 is complete and usable for daily study. v0.2 now adds persistent
+profiles, first-login onboarding, server-backed Pomodoro preferences, and the
+foundation for Portuguese/English UI.
 
-The first local version is usable for daily study. The Python, SQLite, and FastAPI
-layers save completed focus sessions and provide daily, weekly, monthly, history,
-category, and selected-date data. The web interface consumes these API responses
-and includes a timer, automatic focus/rest transitions, progress dashboard,
-navigable activity map, category session details, history, quick focus check-ins,
-and themes.
+The Python, SQLite, and FastAPI layers save completed focus sessions and provide
+daily, weekly, monthly, history, category, selected-date, goal, and streak data.
+The web interface consumes these API responses and includes a timer, automatic
+focus/rest transitions, progress dashboard, configurable goals, navigable activity
+map, category session details, history, quick focus check-ins, and themes.
 
 ## Product vision
 
@@ -58,6 +59,8 @@ punishing users or turning the end of a session into a long questionnaire.
 - retrieve a limited number of recent sessions;
 - order history from newest to oldest;
 - update a session with an optional focus check-in;
+- save and retrieve the current daily study goal;
+- calculate the current consecutive study-day streak;
 - expose the data through FastAPI endpoints.
 
 ### Front-end
@@ -79,10 +82,14 @@ punishing users or turning the end of a session into a long questionnaire.
 - session history grouped by date;
 - category selection and creation;
 - local theme selection.
+- first-login onboarding connected to the authenticated user;
+- persistent profile and Pomodoro preferences;
+- centralized i18n dictionary foundation for `pt-BR` and `en`.
+- language selection persisted in the account preferences and local browser;
+- sound and browser-notification preferences connected to timer transitions.
 
 The current version is local-only and uses the Python API running on the same
-computer. Authentication and online synchronization are planned for a future
-version.
+computer. Authentication and online synchronization are planned for v0.2.
 
 ## Roadmap
 
@@ -105,13 +112,21 @@ version.
 - [x] Quick post-session check-in
 - [x] Category session details
 - [x] Immersive focus mode
+- [x] Configurable daily and weekly study goals
+- [x] Current consecutive-study streak
+- [x] Browser tab timer title
+- [x] Local account registration and persistent cookie sessions
+- [x] Google OAuth flow prepared (requires local Google Cloud credentials)
 - [ ] End-of-study-block reflection
 - [x] Local development launcher
 - [ ] Post-session reflection
 - [x] Subjects and project categories
 - [x] Light, dark, and custom visual themes
 - [ ] Automated tests
-- [ ] Authentication and user profiles
+- [x] Authentication and user profiles
+- [x] First-login onboarding and persistent Pomodoro preferences
+- [x] i18n foundation for Portuguese and English
+- [x] User-scoped new sessions, categories, and goals (legacy rows preserved as unassigned)
 - [ ] Advanced reports and personalized insights
 - [ ] Optional AI-assisted weekly insights
 
@@ -123,6 +138,7 @@ version.
 - SQLite
 - SQL
 - FastAPI for the HTTP API
+- Google OAuth 2.0 / OpenID Connect for optional sign-in
 
 ### Front-end
 
@@ -210,17 +226,18 @@ Depending on the operating system, the command may be:
 python3 app/main.py
 ```
 
-### Run the front-end
+### Run the local API and front-end
+
+Use the project launcher from the repository root:
 
 ```bash
-cd frontend
-pnpm install
-pnpm dev
+run-local.bat
 ```
 
 Open `http://localhost:3000` in the browser.
 
-The API is not available yet, so the front-end currently uses demonstration data.
+The API runs at `http://127.0.0.1:8000` and the front-end communicates with it
+through HTTP. The front-end does not access SQLite directly.
 
 ## Learning goals
 

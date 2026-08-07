@@ -7,7 +7,7 @@ import {
   type Category,
 } from "../services/categories";
 
-export function useCategories() {
+export function useCategories(locale = "pt-BR") {
   const [categories, setCategories] = useState<Category[] | null>(null);
   const [hasError, setHasError] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -36,7 +36,7 @@ export function useCategories() {
       const createdCategory = await createCategory(name);
       setCategories((current) =>
         [...(current ?? []), createdCategory].sort((first, second) =>
-          first.name.localeCompare(second.name, "pt-BR"),
+          first.name.localeCompare(second.name, locale),
         ),
       );
       return createdCategory;

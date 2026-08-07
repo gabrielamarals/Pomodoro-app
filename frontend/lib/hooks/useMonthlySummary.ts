@@ -45,6 +45,14 @@ export function useMonthlySummary() {
     });
   }
 
+  function changeYear(year: number) {
+    setMonth((currentMonth) => {
+      const monthNumber = currentMonth.split("-")[1];
+      const targetMonth = `${year}-${monthNumber}`;
+      return targetMonth > getCurrentMonth() ? getCurrentMonth() : targetMonth;
+    });
+  }
+
   return {
     month,
     summaries,
@@ -53,6 +61,7 @@ export function useMonthlySummary() {
     isCurrentMonth: month === getCurrentMonth(),
     showPreviousMonth: () => changeMonth(-1),
     showNextMonth: () => changeMonth(1),
+    changeYear,
     showCurrentMonth: () => setMonth(getCurrentMonth()),
   };
 }
