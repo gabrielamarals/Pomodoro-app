@@ -4,3 +4,6 @@ google-auth
 python-dotenv
 requests
 httpx
+SQLAlchemy>=2.0,<3.0
+psycopg[binary]>=3.2,<4.0
+alembic>=1.13,<2.0
