@@ -11,6 +11,7 @@ import {
   updateSessionReflection,
 } from "../lib/services/sessions";
 import { useCategories } from "../lib/hooks/useCategories";
+import { useScreenWakeLock } from "../lib/hooks/useScreenWakeLock";
 import { CategoryRequestError } from "../lib/services/categories";
 import { useCurrentAccount } from "../lib/hooks/useCurrentAccount";
 import { useI18n } from "../lib/i18n/I18nProvider";
@@ -173,6 +174,7 @@ export default function Home() {
     () => `${TIMER_STORAGE_PREFIX}:${account?.user.id ?? "guest"}`,
     [account?.user.id],
   );
+  useScreenWakeLock(isHydrated && status === "running");
 
   const totalSeconds = (mode === "focus" ? focusMinutes : restMinutes) * 60;
   const progress = Math.max(0, Math.min(100, (remainingSeconds / totalSeconds) * 100));
