@@ -193,8 +193,6 @@ validado no navegador após cada deploy.
 - **API:** <https://foco-api-thc3.onrender.com>
 - **Saúde da API:** <https://foco-api-thc3.onrender.com/health>
 
-As URLs finais e os valores secretos são configurados nos painéis dos serviços,
-nunca no repositório.
 
 ## Segurança e multiusuário
 
