@@ -1,66 +1,36 @@
-# Foco — Pomodoro e acompanhamento de estudos
+# Foco — Study Tracker
 
-Foco é um Pomodoro bilíngue que registra sessões, metas, categorias e pequenas
-reflexões sobre a qualidade do estudo. A proposta é mostrar não apenas quanto
-tempo a pessoa estudou, mas ajudá-la a perceber como ela estuda ao longo do
-tempo.
+Foco is a bilingual study productivity tracker that combines a Pomodoro timer with session history, goals, categories and study analytics. It was built as a practical project to deepen my knowledge of Python, SQL, REST APIs, authentication and full-stack integration.
 
-## Autoria e colaboração
+**Live application:** https://foco-pomodoro.gabrielamarals.workers.dev  
+**API health:** https://foco-api-thc3.onrender.com/health
 
-**Gabriel Augusto Amaral Silva** criou o produto e desenvolveu o back-end como
-projeto de aprendizagem em Python, SQL, bancos de dados e APIs. A interface foi
-desenvolvida em colaboração com o **OpenAI Codex**. Para preparar o beta público,
-o Codex também auxiliou na portabilidade para PostgreSQL, segurança,
-infraestrutura, testes e deploy, com as decisões acompanhadas por Gabriel.
+## Features
 
-## Funcionalidades
+- configurable focus and rest timer with pause, resume and immersive mode;
+- timer recovery after page reloads;
+- user registration, login and logout;
+- Google OAuth login;
+- authenticated sessions with user data isolation;
+- study session tracking with optional goals and categories;
+- daily, weekly and monthly summaries;
+- study streak and consistency map;
+- optional focus-quality and distraction check-in;
+- onboarding and individual preferences;
+- Portuguese and English interface;
+- responsive layout for desktop and mobile browsers.
 
-- temporizador com foco, descanso, pausa, retomada e modo imersivo;
-- recuperação do timer após recarregar a página;
-- registro de sessões por usuário;
-- check-in opcional de qualidade do foco e distração;
-- categorias, objetivos e histórico detalhado;
-- resumos diário, semanal e mensal;
-- meta diária, sequência de estudos e mapa de constância;
-- conta por e-mail/senha e login com Google;
-- onboarding e preferências individuais;
-- temas Natural, Ember e Ocean;
-- interface em português e inglês;
-- layout responsivo para desktop e navegador móvel.
-
-## Arquitetura
-
-```text
-Navegador
-  → Front-end React/Vinext (Cloudflare Worker)
-  → proxy de mesma origem /api
-  → API FastAPI (Render)
-  → PostgreSQL (produção)
-
-Desenvolvimento local
-  → mesma API FastAPI
-  → SQLite local
-```
-
-O front-end nunca acessa o banco diretamente. A seleção do banco é centralizada
-em `app/db.py`: sem `DATABASE_URL`, o ambiente local usa SQLite; com uma URL
-PostgreSQL, a mesma camada de persistência usa PostgreSQL via SQLAlchemy.
-
-O proxy `/api` mantém os cookies de autenticação como cookies de primeira parte
-do site. Isso evita depender de cookies de terceiros entre domínios diferentes,
-especialmente em navegadores móveis.
-
-## Tecnologias
+## Tech stack
 
 ### Back-end
 
 - Python 3.10+
-- FastAPI e Uvicorn
+- FastAPI
 - SQLAlchemy 2
 - Alembic
-- SQLite no desenvolvimento local
-- PostgreSQL em produção
-- Argon2 para hash de senhas
+- SQLite for local development
+- PostgreSQL in production
+- Argon2 password hashing
 - Google OAuth 2.0 / OpenID Connect
 
 ### Front-end
@@ -69,39 +39,56 @@ especialmente em navegadores móveis.
 - React 19
 - Vinext / Vite
 - Cloudflare Workers
-- CSS responsivo e i18n centralizado
+- responsive CSS and centralized i18n
 
-## Estrutura principal
+## Architecture
+
+```text
+Browser
+  → React/Vinext front-end (Cloudflare Worker)
+  → same-origin /api proxy
+  → FastAPI API (Render)
+  → PostgreSQL (production)
+
+Local development
+  → FastAPI API
+  → SQLite
+```
+
+The front-end never accesses the database directly. Database selection is centralized in `app/db.py`: local development defaults to SQLite, while production uses PostgreSQL through the same SQLAlchemy persistence layer.
+
+The `/api` proxy keeps authentication cookies first-party from the browser's point of view, which avoids relying on third-party cookies across the front-end and API domains.
+
+## Project structure
 
 ```text
 app/
-  api.py          # rotas HTTP, autenticação e configuração web
-  auth.py         # usuários, senhas e sessões autenticadas
-  database.py     # operações de domínio e consultas
-  db.py           # engine e seleção SQLite/PostgreSQL
-  schema.py       # esquema SQLAlchemy
+  api.py          # HTTP routes, authentication and web configuration
+  auth.py         # users, password hashing and authenticated sessions
+  database.py     # domain operations and queries
+  db.py           # database engine and SQLite/PostgreSQL selection
+  schema.py       # SQLAlchemy schema
 frontend/
-  app/            # páginas e componentes
-  lib/config/     # configuração central da API
-  lib/services/   # contratos HTTP
-  lib/i18n/       # traduções pt-BR/en
-  worker/         # aplicação e proxy /api
-migrations/       # migrations Alembic
-tests/            # testes automatizados da API
-render.yaml       # infraestrutura do back-end e PostgreSQL
+  app/            # pages and components
+  lib/config/     # API configuration
+  lib/services/   # HTTP service layer
+  lib/i18n/       # pt-BR/en translations
+  worker/         # Cloudflare Worker and /api proxy
+migrations/       # Alembic migrations
+tests/            # automated API tests
+docs/             # project planning and historical notes
+render.yaml       # back-end and PostgreSQL deployment configuration
 ```
 
-## Executar localmente
+## Run locally
 
-### Requisitos
+### Requirements
 
-- Python 3.10 ou superior;
-- Node.js 22.13 ou superior;
+- Python 3.10 or newer;
+- Node.js 22.13 or newer;
 - pnpm.
 
 ### Back-end
-
-Na raiz do projeto:
 
 ```powershell
 python -m venv .venv
@@ -110,12 +97,9 @@ python -m pip install -r requirements.txt
 python -m uvicorn app.api:app --reload
 ```
 
-Sem `DATABASE_URL`, o SQLite é criado em `app/pomodoro.db`. O arquivo é local e
-não deve ser versionado.
+Without `DATABASE_URL`, the application creates a local SQLite database at `app/pomodoro.db`.
 
 ### Front-end
-
-Em outro terminal:
 
 ```powershell
 cd frontend
@@ -123,91 +107,94 @@ pnpm install
 pnpm run dev
 ```
 
-Abra `http://localhost:3000`. Em desenvolvimento, o Worker encaminha `/api` para
-`http://127.0.0.1:8000`.
+Open `http://localhost:3000`. During local development, the Worker forwards `/api` to `http://127.0.0.1:8000`.
 
-No Windows, `run-local.bat` continua disponível para iniciar os dois processos.
+On Windows, `run-local.bat` can also start both processes.
 
-## Variáveis de ambiente
+## Environment variables
 
-Copie `.env.example` para `.env` apenas no ambiente local. Nunca envie o `.env`
-ao Git.
+Copy `.env.example` to `.env` only for local development. Never commit `.env` files.
 
 ### API
 
-| Variável | Uso |
+| Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | URL PostgreSQL em produção; vazia usa SQLite local |
-| `FRONTEND_URL` | URL pública do front-end |
-| `CORS_ORIGINS` | origens permitidas, separadas por vírgula |
-| `COOKIE_SECURE` | `true` em HTTPS de produção |
-| `COOKIE_SAMESITE` | política SameSite do cookie |
-| `GOOGLE_CLIENT_ID` | identificador OAuth do Google |
-| `GOOGLE_CLIENT_SECRET` | segredo OAuth; somente no back-end |
-| `GOOGLE_REDIRECT_URI` | callback autorizado no Google |
+| `DATABASE_URL` | PostgreSQL URL in production; empty uses local SQLite |
+| `FRONTEND_URL` | public front-end URL |
+| `CORS_ORIGINS` | allowed origins separated by commas |
+| `COOKIE_SECURE` | `true` when using HTTPS in production |
+| `COOKIE_SAMESITE` | SameSite cookie policy |
+| `GOOGLE_CLIENT_ID` | Google OAuth client identifier |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth secret, back-end only |
+| `GOOGLE_REDIRECT_URI` | authorized Google callback URL |
 
 ### Front-end
 
-| Variável | Uso |
+| Variable | Purpose |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | caminho usado pelo navegador; padrão `/api` |
-| `API_ORIGIN` | origem privada/pública do FastAPI usada pelo Worker |
-| `VITE_API_ORIGIN` | origem do FastAPI durante desenvolvimento/build local |
+| `NEXT_PUBLIC_API_URL` | browser API path; defaults to `/api` |
+| `API_ORIGIN` | FastAPI origin used by the Worker |
+| `VITE_API_ORIGIN` | FastAPI origin during local development/build |
 
-Os arquivos `.env.example` contêm somente nomes e exemplos não sensíveis.
+The example environment files contain names and non-sensitive examples only.
 
-## Banco e migrations
+## Database and migrations
 
-O SQLite preserva a história e continua útil localmente. A produção usa um
-PostgreSQL vazio e aplica a migration inicial com:
+Production uses PostgreSQL and applies migrations with:
 
 ```bash
 alembic upgrade head
 ```
 
-O `render.yaml` executa a migration antes de iniciar o Uvicorn. O banco local não
-é copiado para produção, portanto dados de desenvolvimento não são publicados.
+`render.yaml` runs the migration before starting Uvicorn. Local SQLite data is never copied to production.
 
-## Testes e build
+## Tests and quality checks
+
+Back-end tests cover API health, authentication, onboarding, preferences, idempotent session creation and isolation of data between users.
 
 ```powershell
 python -m unittest discover -s tests -v
+```
+
+Front-end checks:
+
+```powershell
 cd frontend
+pnpm run lint
 pnpm run build
 ```
 
-Os testes automatizados cobrem saúde da API, autenticação, onboarding,
-preferências e isolamento entre usuários. O fluxo completo também deve ser
-validado no navegador após cada deploy.
+GitHub Actions runs these checks automatically for pushes and pull requests targeting `main`.
 
-## Deploy
+## Security notes
 
-- **API e PostgreSQL:** Render, usando `render.yaml`.
-- **Front-end:** Cloudflare Worker publicado diretamente com Wrangler.
-- **Google OAuth:** o callback de produção deve apontar para
-  `https://URL-DO-FRONTEND/api/auth/google/callback`.
+- passwords are stored only as Argon2 hashes;
+- random session tokens are stored as hashes;
+- production cookies use `HttpOnly`, `Secure` and `SameSite` settings;
+- logout revokes the corresponding server-side session;
+- sessions, categories, goals, profiles and preferences are scoped to the authenticated user;
+- local databases and secrets are excluded from version control.
 
-### Beta público
+## What I learned
 
-- **Aplicação:** <https://foco-pomodoro.gabrielamarals.workers.dev>
-- **API:** <https://foco-api-thc3.onrender.com>
-- **Saúde da API:** <https://foco-api-thc3.onrender.com/health>
+This project helped me practice and understand:
 
+- designing and validating REST endpoints with FastAPI and Pydantic;
+- relational data modeling and SQL queries;
+- separating application data between authenticated users;
+- password hashing and server-side session management;
+- moving a project from SQLite to PostgreSQL with SQLAlchemy and Alembic;
+- integrating a browser front-end with a Python API;
+- writing automated API tests for real user flows;
+- preparing a small application for deployment and public use.
 
-## Segurança e multiusuário
+## Development notes
 
-- senhas são armazenadas somente como hashes Argon2;
-- tokens de sessão aleatórios são armazenados como hashes;
-- cookies de produção usam `HttpOnly`, `Secure` e `SameSite`;
-- logout revoga a sessão no banco;
-- sessões, categorias, metas, perfis e preferências são filtrados pelo usuário
-  autenticado;
-- o estado local do temporizador também é separado por usuário;
-- segredos e bancos locais são ignorados pelo Git.
+I created the product and developed the Python/SQL back-end as a learning project. The front-end design and parts of the production-readiness work were developed with assistance from OpenAI Codex. AI assistance was used as a development tool, while I reviewed the changes and used the project to study the underlying architecture, API, database and deployment decisions.
 
-## Próximos passos após o beta
+## Next steps
 
-- reunir feedback de uso real;
-- melhorar relatórios de qualidade das sessões;
-- adicionar reflexão opcional ao fim de um bloco de estudo;
-- estudar insights personalizados somente após haver dados suficientes.
+- collect feedback from real usage;
+- improve reports about session quality;
+- add an optional end-of-session reflection flow;
+- explore personalized insights only after enough reliable usage data exists.
